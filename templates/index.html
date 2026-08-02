@@ -1,0 +1,2544 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clínica Dental · Gestión de pacientes y agenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&family=Merriweather:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAF8F4;
+    --ink:#1E2A28;
+    --primary:#2F6F62;
+    --primary-dark: color-mix(in srgb, var(--primary) 72%, black);
+    --primary-light: color-mix(in srgb, var(--primary) 14%, white);
+    --accent:#E1734F;
+    --accent-dark: color-mix(in srgb, var(--accent) 80%, black);
+    --muted:#7C8B87;
+    --border:#DFE5E1;
+    --card:#FFFFFF;
+    --danger:#C0463C;
+    --danger-light:#FBEAE8;
+    --ok:#3D8361;
+    --ok-light:#E7F3EC;
+    --warn:#B8862E;
+    --warn-light:#FBF1DF;
+    --radius:10px;
+    --shadow: 0 1px 2px rgba(30,42,40,0.04), 0 4px 16px rgba(30,42,40,0.06);
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  :root{
+    --base-font-size: 15px;
+  }
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    font-size:var(--base-font-size);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:var(--font-display);}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  #app{display:flex;min-height:100vh;zoom:var(--ui-zoom, 1);}
+
+  /* ---- Sidebar ---- */
+  .sidebar{
+    width:230px;flex-shrink:0;
+    background:var(--primary-dark);
+    color:#EAF3EF;
+    display:flex;flex-direction:column;
+    padding:24px 16px;
+  }
+  .brand{padding:0 8px 24px 8px;border-bottom:1px solid rgba(234,243,239,0.14);margin-bottom:20px;}
+  .brand .tooth{width:34px;height:34px;margin-bottom:10px;}
+  .brand h1{font-size:18px;margin:0 0 2px 0;font-weight:700;letter-spacing:-0.01em;}
+  .brand p{margin:0;font-size:12px;color:#B7CFC6;}
+  nav{display:flex;flex-direction:column;gap:4px;}
+  .navbtn{
+    display:flex;align-items:center;gap:10px;
+    background:transparent;border:none;color:#D8E8E1;
+    padding:10px 12px;border-radius:8px;font-size:14px;font-weight:500;
+    text-align:left;transition:background .15s ease, color .15s ease;
+  }
+  .navbtn svg{width:17px;height:17px;flex-shrink:0;opacity:.85;}
+  .navbtn:hover{background:rgba(234,243,239,0.08);}
+  .navbtn.active{background:var(--accent);color:#fff;}
+  .navbtn.active svg{opacity:1;}
+  .sidebar-foot{margin-top:auto;padding:10px 8px 0 8px;font-size:11px;color:#7FA396;border-top:1px solid rgba(234,243,239,0.14);padding-top:14px;}
+
+  /* ---- Main ---- */
+  .main{flex:1;padding:0 40px 32px 40px;max-width:1100px;}
+  .topbar{display:flex;justify-content:flex-end;align-items:center;padding:18px 0 8px 0;}
+  .topbar-doctor{font-size:13.5px;font-weight:600;color:var(--primary-dark);display:flex;align-items:center;gap:8px;background:var(--primary-light);padding:7px 14px;border-radius:20px;}
+  .topbar-doctor .doc-icon{font-size:15px;}
+  .view{display:none;}
+  .view.active{display:block;animation:fade .18s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+
+  .view-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
+  .view-head h2{font-size:24px;margin:0 0 4px 0;}
+  .view-head .sub{color:var(--muted);font-size:13px;margin:0;}
+
+  .btn{
+    border:none;border-radius:8px;padding:10px 16px;font-size:13.5px;font-weight:600;
+    display:inline-flex;align-items:center;gap:6px;transition:transform .1s ease, background .15s ease;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-ghost{background:transparent;color:var(--primary);border:1px solid var(--border);}
+  .btn-ghost:hover{background:var(--primary-light);}
+  .btn-danger{background:var(--danger-light);color:var(--danger);}
+  .btn-danger:hover{background:#F5D6D2;}
+  .btn-sm{padding:6px 10px;font-size:12.5px;border-radius:7px;}
+
+  /* stat chips */
+  .stats-row{display:flex;gap:12px;margin-bottom:22px;flex-wrap:wrap;}
+  .stat-chip{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;min-width:120px;box-shadow:var(--shadow);}
+  .stat-chip .num{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:var(--primary);}
+  .stat-chip .lbl{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+
+  /* Dashboard KPIs */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(190px,1fr));gap:16px;margin-bottom:24px;}
+  .kpi-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px 20px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;
+  }
+  .kpi-card .kpi-title{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:6px;}
+  .kpi-card .kpi-value{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:var(--primary-dark);}
+  .kpi-card .kpi-icon{font-size:22px;opacity:.85;}
+  .kpi-card-plain{background:transparent;border:1px dashed var(--border);box-shadow:none;}
+  .kpi-value-plain{font-family:var(--font-body);font-size:19px;font-weight:600;color:var(--muted);}
+  .kpi-eye{background:transparent;border:none;font-size:16px;opacity:.6;padding:4px;border-radius:6px;}
+  .kpi-eye:hover{opacity:1;background:var(--primary-light);}
+  .dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;align-items:start;}
+  @media (max-width:900px){.dash-grid{grid-template-columns:1fr;}}
+  .dash-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;}
+  .dash-panel h3{font-size:15px;margin:0 0 14px 0;}
+  .dash-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .dash-row:last-child{border-bottom:none;}
+
+  /* badges */
+  .badge{padding:4px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.02em;display:inline-block;}
+  .badge-success{background:var(--ok-light);color:var(--ok);}
+  .badge-warning{background:var(--warn-light);color:var(--warn);}
+  .badge-danger{background:var(--danger-light);color:var(--danger);}
+  .badge-muted{background:var(--primary-light);color:var(--primary-dark);}
+
+  /* Odontograma */
+  .odonto-patient-picker{margin-bottom:18px;max-width:340px;}
+  .odonto-patient-picker select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:13.5px;}
+  .tooth-arch{display:flex;justify-content:center;align-items:flex-end;gap:4px;flex-wrap:wrap;margin:10px 0 22px 0;padding:14px 10px;background:#fff;border:1px solid var(--border);border-radius:12px;}
+  .tooth-svg{
+    width:36px;background:none;border:none;cursor:pointer;padding:2px 0;
+    display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .12s ease;
+  }
+  .tooth-svg svg{width:26px;height:26px;fill:#fff;stroke:var(--border);stroke-width:1.4px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.06));}
+  .tooth-svg .tn{font-size:9.5px;color:var(--muted);font-weight:600;}
+  .tooth-svg:hover{transform:translateY(-3px);}
+  .tooth-svg.status-caries svg{fill:var(--danger-light);stroke:var(--danger);}
+  .tooth-svg.status-obturado svg{fill:var(--primary-light);stroke:var(--primary);}
+  .tooth-svg.status-corona svg{fill:var(--warn-light);stroke:var(--warn);}
+  .tooth-svg.status-ausente svg{fill:#EEE;stroke:#BBB;opacity:.45;}
+  .tooth-svg.status-extraccion svg{fill:#F3E3E1;stroke:var(--danger);stroke-dasharray:2.5;opacity:.75;}
+  .tooth-svg.status-implante svg{fill:var(--ok-light);stroke:var(--ok);}
+  .tooth-svg.status-endodoncia svg{fill:#EFE6F7;stroke:#8B5FBF;}
+  .tooth-svg.status-caries .tn{color:var(--danger);}
+  .tooth-svg.status-obturado .tn{color:var(--primary-dark);}
+  .tooth-svg.status-corona .tn{color:var(--warn);}
+  .tooth-svg.status-implante .tn{color:var(--ok);}
+  .tooth-svg.status-endodoncia .tn{color:#8B5FBF;}
+  .tooth-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-bottom:18px;}
+  .tooth-legend span{display:flex;align-items:center;gap:6px;}
+  .tooth-legend i{width:12px;height:12px;border-radius:3px;display:inline-block;}
+
+  /* Presupuestos */
+  .budget-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);margin-bottom:10px;}
+  .budget-card .bhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .budget-card .bpatient{font-size:12px;color:var(--muted);margin-bottom:8px;}
+  .budget-items{font-size:12.5px;color:var(--ink);margin:6px 0;}
+  .budget-items div{display:flex;justify-content:space-between;padding:3px 0;}
+  .budget-total{font-weight:700;text-align:right;margin-top:6px;font-family:'Space Grotesk',sans-serif;color:var(--primary-dark);}
+  .budget-actions{display:flex;gap:8px;margin-top:10px;}
+  .item-row{display:flex;gap:8px;margin-bottom:8px;}
+  .item-row input[type="text"]{flex:1;}
+  .item-row input[type="number"]{width:110px;}
+
+  /* Usuarios */
+  .user-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;}
+  .user-row:last-child{border-bottom:none;}
+  .user-row .uname{font-weight:600;font-size:13.5px;}
+  .user-row .umeta{font-size:12px;color:var(--muted);}
+  .perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:6px;}
+  .perm-grid label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--ink);}
+
+  /* Respaldos */
+  .backup-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;}
+  .backup-row:last-child{border-bottom:none;}
+  .backup-row .bname{font-size:13px;font-weight:600;}
+  .backup-row .bmeta{font-size:11.5px;color:var(--muted);}
+
+  /* search */
+  .search-row{display:flex;gap:10px;margin-bottom:16px;}
+  .search-row input[type="text"]{
+    flex:1;padding:10px 14px;border-radius:8px;border:1px solid var(--border);
+    background:var(--card);font-size:13.5px;color:var(--ink);
+  }
+  .search-row input:focus{outline:2px solid var(--primary-light);border-color:var(--primary);}
+
+  /* patient cards */
+  .patient-list{display:flex;flex-direction:column;gap:8px;}
+  .patient-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
+    box-shadow:var(--shadow); cursor:pointer; transition:border-color .12s ease;
+  }
+  .patient-card:hover{border-color:var(--primary);}
+  .patient-card .who{display:flex;align-items:center;gap:12px;}
+  .avatar{
+    width:38px;height:38px;border-radius:50%;background:var(--primary-light);color:var(--primary-dark);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .avatar.has-photo{cursor:zoom-in;position:relative;transition:transform .15s ease, box-shadow .15s ease;}
+  .avatar.has-photo:hover{transform:scale(1.08);box-shadow:0 2px 10px rgba(0,0,0,0.18);}
+  .avatar.has-photo:hover::after{
+    content:'🔍';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:1.1em;background:rgba(0,0,0,0.28);border-radius:50%;
+  }
+  .who .name{font-weight:600;font-size:14.5px;}
+  .who .meta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .next-appt{font-size:12px;color:var(--primary-dark);text-align:right;}
+  .next-appt .none{color:var(--muted);}
+  .empty-state{
+    text-align:center;padding:60px 20px;color:var(--muted);border:1px dashed var(--border);border-radius:var(--radius);
+  }
+  .empty-state .icon{font-size:30px;margin-bottom:6px;}
+
+  /* Agenda */
+  .agenda-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+  .date-nav{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:4px;}
+  .date-nav button{background:transparent;border:none;padding:6px 9px;border-radius:6px;color:var(--primary-dark);font-weight:600;}
+  .date-nav button:hover{background:var(--primary-light);}
+  .date-nav input[type="date"]{border:none;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);background:transparent;padding:4px;}
+  .today-label{font-size:13px;color:var(--muted);}
+
+  .appt-list{display:flex;flex-direction:column;gap:8px;}
+  .appt-card{
+    background:var(--card);border:1px solid var(--border);border-left:4px solid var(--primary);
+    border-radius:var(--radius);padding:12px 16px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);
+  }
+  .appt-card.status-cancelada{border-left-color:var(--danger); opacity:.65;}
+  .appt-card.status-pendiente{border-left-color:var(--warn);}
+  .appt-time{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:14px;min-width:52px;color:var(--primary-dark);}
+  .appt-body{flex:1;}
+  .appt-body .pname{font-weight:600;font-size:14px;cursor:pointer;}
+  .appt-body .pname:hover{text-decoration:underline;}
+  .appt-body .reason{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;text-transform:capitalize;}
+  .badge.confirmada{background:var(--ok-light);color:var(--ok);}
+  .badge.pendiente{background:var(--warn-light);color:var(--warn);}
+  .badge.cancelada{background:var(--danger-light);color:var(--danger);}
+  .appt-actions{display:flex;gap:6px;}
+
+  /* Calendar */
+  .cal-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .cal-toolbar h3{margin:0;font-size:17px;text-transform:capitalize;}
+  .agenda-calendar{margin-top:32px;padding-top:24px;border-top:1px solid var(--border);}
+  .cal-section-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
+  .cal-section-head h3{margin:0 0 3px;font-size:17px;}
+  .cal-section-head p{margin:0;color:var(--muted);font-size:12.5px;}
+  .cal-section-head .cal-toolbar{margin:0;gap:8px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+  .cal-dow{font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px;}
+  .cal-day{
+    background:var(--card);border:1px solid var(--border);border-radius:8px;min-height:74px;
+    padding:8px;cursor:pointer;position:relative;transition:border-color .12s ease;
+  }
+  .cal-day:hover{border-color:var(--primary);}
+  .cal-day.other-month{opacity:.35;}
+  .cal-day.is-today{border-color:var(--accent);border-width:2px;}
+  .cal-day .dnum{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink);}
+  .cal-day .dots{display:flex;gap:3px;margin-top:8px;flex-wrap:wrap;}
+  .cal-day .dot{width:6px;height:6px;border-radius:50%;background:var(--primary);}
+  .cal-day .count{position:absolute;bottom:6px;right:8px;font-size:10.5px;color:var(--primary-dark);font-weight:600;}
+
+  /* Modal */
+  .overlay{
+    position:fixed;inset:0;background:rgba(30,42,40,0.45);display:none;
+    align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;z-index:50;
+  }
+  .overlay.open{display:flex;}
+  #modal-profile{z-index:45;}
+  .modal{
+    background:var(--card);border-radius:14px;width:100%;max-width:520px;padding:26px 28px 24px;
+    box-shadow:0 20px 60px rgba(30,42,40,0.25);
+  }
+  .modal h3{margin:0 0 4px 0;font-size:18px;}
+  .modal .modal-sub{color:var(--muted);font-size:12.5px;margin:0 0 18px 0;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--primary-dark);margin-bottom:5px;}
+  .field input,.field select,.field textarea{
+    width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;color:var(--ink);background:#FCFBF9;
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--primary);background:#fff;}
+  .field textarea{resize:vertical;min-height:56px;}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .close-x{position:absolute;top:16px;right:18px;background:none;border:none;font-size:18px;color:var(--muted);}
+  .modal{position:relative;}
+
+  /* Profile modal */
+  .profile-header{display:flex;gap:14px;align-items:center;margin-bottom:16px;}
+  .profile-header .avatar{width:52px;height:52px;font-size:18px;}
+  .profile-header h3{margin:0;font-size:19px;}
+  .profile-header .sub{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;margin-bottom:16px;font-size:13px;}
+  .profile-grid .k{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin-bottom:2px;}
+  .profile-grid .v{color:var(--ink);}
+  .profile-block{margin-bottom:14px;}
+  .profile-block .k{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin-bottom:4px;}
+  .profile-block .v{font-size:13.5px;line-height:1.5;}
+  .profile-actions{display:flex;gap:8px;margin:6px 0 18px 0;flex-wrap:wrap;}
+  .pf-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:16px 0 18px 0;}
+  .pf-tab{background:none;border:none;padding:9px 4px;margin-right:16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;}
+  .pf-tab:hover{color:var(--primary-dark);}
+  .pf-tab.active{color:var(--primary-dark);border-bottom-color:var(--primary);}
+  .pf-panel{display:none;}
+  .pf-panel.active{display:block;}
+  .hist-title{font-size:12.5px;font-weight:700;color:var(--primary-dark);margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.03em;}
+  .hist-item{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .hist-item:last-child{border-bottom:none;}
+  .hist-item .d{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:12px;}
+
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;
+    opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;z-index:99;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+  /* ---- Avatar con foto / logo ---- */
+  .avatar{overflow:hidden;}
+  .avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+  .brand-logo-img{width:34px;height:34px;object-fit:contain;border-radius:6px;margin-bottom:10px;display:block;}
+
+  /* ---- Badges extra (tratamientos / facturación) ---- */
+  .badge.pagado{background:var(--ok-light);color:var(--ok);}
+  .badge.parcial{background:color-mix(in srgb, var(--accent) 18%, white);color:var(--accent-dark);}
+
+  /* ---- Fotografía de perfil en la ficha ---- */
+  .photo-row{display:flex;align-items:center;gap:14px;margin-bottom:4px;}
+  .photo-row .avatar{width:64px;height:64px;font-size:20px;flex-shrink:0;}
+  .photo-row .avatar.has-photo{cursor:zoom-in;}
+  .photo-actions{display:flex;gap:8px;}
+  .photo-actions label.btn{margin:0;}
+
+  /* ---- Exámenes / radiografías ---- */
+  .doc-upload-row{display:flex;gap:8px;align-items:center;margin:10px 0 14px 0;flex-wrap:wrap;}
+  .doc-upload-row select{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;}
+  .doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:6px;}
+  .doc-item{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#FCFBF9;position:relative;}
+  .doc-item .thumb{width:100%;height:80px;object-fit:cover;display:block;background:var(--primary-light);}
+  .doc-item .thumb-icon{width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--primary-light);}
+  .doc-item .doc-name{font-size:10.5px;color:var(--muted);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .doc-item .doc-cat{position:absolute;top:5px;left:5px;font-size:9.5px;background:rgba(30,42,40,0.72);color:#fff;padding:2px 6px;border-radius:20px;text-transform:capitalize;}
+  .doc-item .doc-del{position:absolute;top:5px;right:5px;background:rgba(192,70,60,0.9);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;}
+  .doc-item a{display:block;color:inherit;text-decoration:none;}
+  .doc-send-row{display:flex;border-top:1px solid var(--border);}
+  .doc-send-btn{flex:1;background:var(--card);border:none;padding:5px 0;font-size:13px;cursor:pointer;}
+  .doc-send-btn:hover{background:var(--primary-light);}
+  .doc-send-wa{border-right:1px solid var(--border);}
+  .doc-empty{font-size:12.5px;color:var(--muted);padding:10px 0;}
+
+  /* ---- Tratamientos / Facturación ---- */
+  .charge-toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+  .charge-toolbar select{padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:13px;}
+  .charge-list{display:flex;flex-direction:column;gap:8px;}
+  .charge-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:13px 16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .charge-body{flex:1;min-width:160px;}
+  .charge-body .tname{font-weight:600;font-size:14px;}
+  .charge-body .pname{font-size:12.5px;color:var(--primary-dark);cursor:pointer;}
+  .charge-body .pname:hover{text-decoration:underline;}
+  .charge-body .cdate{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .charge-money{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;min-width:120px;}
+  .charge-money .cost{color:var(--ink);}
+  .charge-money .balance{color:var(--danger);font-weight:600;}
+  .charge-money .balance.zero{color:var(--ok);}
+  .charge-actions{display:flex;gap:6px;}
+
+  /* ---- Configuración ---- */
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:720px;}
+  @media (max-width:820px){.settings-grid{grid-template-columns:1fr;}}
+  .settings-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow);}
+  .settings-card h3{font-size:15px;margin:0 0 14px 0;}
+  .color-field{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .color-field input[type="color"]{width:42px;height:34px;border:1px solid var(--border);border-radius:7px;padding:2px;background:#fff;}
+  .color-field label{font-size:12.5px;font-weight:600;color:var(--primary-dark);flex:1;}
+  .logo-preview{width:100%;max-width:160px;height:70px;object-fit:contain;background:var(--primary-light);border-radius:8px;margin-bottom:12px;display:block;}
+  .logo-preview-empty{width:100%;max-width:160px;height:70px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;background:var(--primary-light);border-radius:8px;margin-bottom:12px;}
+  .font-preview{margin-top:6px;padding:10px 12px;border:1px dashed var(--border);border-radius:8px;font-size:14px;}
+
+  @media (max-width:760px){
+    #app{flex-direction:column;}
+    .sidebar{width:100%;flex-direction:row;align-items:center;padding:14px 16px;flex-wrap:wrap;}
+    .brand{border:none;padding:0;margin:0 16px 0 0;flex-shrink:0;}
+    .brand p{display:none;}
+    nav{flex-direction:row;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
+    .navbtn{flex-shrink:0;white-space:nowrap;}
+    .sidebar-foot{
+      width:100%;margin-top:10px;padding-top:10px;text-align:center;
+      border-top:1px solid rgba(234,243,239,0.14);
+    }
+    .main{padding:20px;}
+    .profile-grid{grid-template-columns:1fr;}
+    .cal-section-head{align-items:flex-start;}
+    .field-row{flex-direction:column;gap:0;}
+    .item-row{flex-wrap:wrap;}
+    .item-row input[type="number"]{width:100%;}
+    .pf-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
+    .pf-tab{flex-shrink:0;}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg class="tooth" id="brand-tooth" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C8.5 2 6 4 4.5 4C3.3 4 2.5 5 2.5 6.5C2.5 9 3.5 10 3.8 12.5C4.1 15 4.5 22 6.5 22C8 22 8 17 9 15C9.5 14 10.2 13.5 12 13.5C13.8 13.5 14.5 14 15 15C16 17 16 22 17.5 22C19.5 22 19.9 15 20.2 12.5C20.5 10 21.5 9 21.5 6.5C21.5 5 20.7 4 19.5 4C18 4 15.5 2 12 2Z" fill="#EAF3EF" fill-opacity="0.92"/>
+      </svg>
+      <img class="brand-logo-img" id="brand-logo" style="display:none;" alt="Logo">
+      <h1 id="brand-name">Clínica Dental</h1>
+      <p>Pacientes &amp; agenda</p>
+    </div>
+    <nav>
+      <button class="navbtn active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </button>
+      <button class="navbtn" data-view="pacientes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+        Pacientes
+      </button>
+      <button class="navbtn" data-view="agenda">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        Agenda y calendario
+      </button>
+      <button class="navbtn" data-view="facturacion">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 14h4"/></svg>
+        Facturación
+      </button>
+      <button class="navbtn" data-view="configuracion">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        Configuración
+      </button>
+    </nav>
+    <div class="sidebar-foot">
+      Conectado como <strong>{{ username }}</strong><br>
+      <a href="#" id="btn-change-pw" style="color:#B7CFC6;">Cambiar contraseña</a> ·
+      <a href="/logout" style="color:#B7CFC6;">Cerrar sesión</a>
+    </div>
+  </aside>
+
+
+  <main class="main">
+    <div class="topbar">
+      <div></div>
+      <div class="topbar-doctor" id="topbar-doctor" style="display:none;">
+        <span class="doc-icon">👨‍⚕️</span><span id="topbar-doctor-name"></span>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view active">
+      <div class="view-head">
+        <div>
+          <h2 id="dashboard-title">Dashboard</h2>
+          <p class="sub">Resumen general de la clínica.</p>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div><div class="kpi-title">Total pacientes</div><div class="kpi-value" id="kpi-total-patients">0</div></div><div class="kpi-icon">👤</div></div>
+        <div class="kpi-card"><div><div class="kpi-title">Citas para hoy</div><div class="kpi-value" id="kpi-today-appts">0</div></div><div class="kpi-icon">📅</div></div>
+        <div class="kpi-card kpi-card-plain">
+          <div>
+            <div class="kpi-title">Ingresos del día</div>
+            <div class="kpi-value kpi-value-plain" id="kpi-today-income">••••</div>
+          </div>
+          <button type="button" class="kpi-eye" id="kpi-income-toggle" title="Mostrar monto">👁️</button>
+        </div>
+      </div>
+      <div class="dash-grid">
+        <div class="dash-panel">
+          <h3>Citas de hoy</h3>
+          <div id="dash-today-list"></div>
+        </div>
+        <div class="dash-panel">
+          <h3>Pacientes con saldo pendiente</h3>
+          <div id="dash-balance-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PACIENTES -->
+    <section id="view-pacientes" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Pacientes</h2>
+          <p class="sub">Ficha e historial de cada paciente de la clínica.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-new-patient">+ Nuevo paciente</button>
+      </div>
+      <div class="stats-row">
+        <div class="stat-chip"><div class="num" id="stat-total-patients">0</div><div class="lbl">Pacientes</div></div>
+        <div class="stat-chip"><div class="num" id="stat-today-count">0</div><div class="lbl">Citas hoy</div></div>
+        <div class="stat-chip"><div class="num" id="stat-week-count">0</div><div class="lbl">Citas esta semana</div></div>
+      </div>
+      <div class="search-row">
+        <input type="text" id="patient-search" placeholder="Buscar por nombre o teléfono…">
+      </div>
+      <div class="patient-list" id="patient-list"></div>
+    </section>
+
+    <!-- AGENDA -->
+    <section id="view-agenda" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Agenda</h2>
+          <p class="sub">Citas del día seleccionado.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-new-appt">+ Nueva cita</button>
+      </div>
+      <div class="agenda-toolbar">
+        <div class="date-nav">
+          <button id="agenda-prev">‹</button>
+          <input type="date" id="agenda-date">
+          <button id="agenda-next">›</button>
+        </div>
+        <span class="today-label" id="agenda-day-label"></span>
+      </div>
+      <div class="appt-list" id="appt-list"></div>
+      <div class="agenda-calendar">
+        <div class="cal-section-head">
+          <div><h3>Calendario mensual</h3><p>Selecciona un día para ver sus citas arriba.</p></div>
+          <div class="cal-toolbar">
+            <button class="btn btn-ghost btn-sm" id="cal-prev">‹ Mes anterior</button>
+            <h3 id="cal-month-label"></h3>
+            <button class="btn btn-ghost btn-sm" id="cal-next">Mes siguiente ›</button>
+          </div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+    </section>
+
+    <!-- Modal: editar diente -->
+    <div class="overlay" id="modal-tooth">
+      <div class="modal" style="max-width:380px;">
+        <button class="close-x" data-close>✕</button>
+        <h3>Diente <span id="tooth-modal-num"></span></h3>
+        <form id="tooth-form">
+          <div class="field">
+            <label>Estado</label>
+            <select id="tooth-status">
+              <option value="sano">Sano</option>
+              <option value="caries">Caries</option>
+              <option value="obturado">Obturado</option>
+              <option value="corona">Corona</option>
+              <option value="endodoncia">Endodoncia</option>
+              <option value="implante">Implante</option>
+              <option value="ausente">Ausente</option>
+              <option value="extraccion">Extracción indicada</option>
+            </select>
+          </div>
+          <div class="field"><label>Notas</label><textarea id="tooth-notes" rows="3"></textarea></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: nuevo/editar presupuesto -->
+    <div class="overlay" id="modal-budget">
+      <div class="modal" style="max-width:480px;">
+        <button class="close-x" data-close>✕</button>
+        <h3 id="budget-modal-title">Nuevo presupuesto</h3>
+        <form id="budget-form">
+          <div class="field">
+            <label>Paciente</label>
+            <select id="budget-patient" required></select>
+          </div>
+          <div class="field"><label>Título</label><input type="text" id="budget-title" required placeholder="Ej. Plan de tratamiento ortodoncia"></div>
+          <label style="font-size:12.5px;font-weight:600;color:var(--primary-dark);">Ítems</label>
+          <div id="budget-items-wrap"></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-add-item" style="margin:6px 0 14px 0;">+ Agregar ítem</button>
+          <div class="field"><label>Notas</label><textarea id="budget-notes" rows="2"></textarea></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- FACTURACIÓN -->
+    <section id="view-facturacion" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Facturación</h2>
+          <p class="sub">Saldos pendientes y pagos de tratamientos.</p>
+        </div>
+        <button class="btn btn-ghost" id="btn-print-billing">Imprimir resumen</button>
+      </div>
+      <div class="stats-row">
+        <div class="stat-chip"><div class="num" id="stat-billed">$0</div><div class="lbl">Total facturado</div></div>
+        <div class="stat-chip"><div class="num" id="stat-collected">$0</div><div class="lbl">Total cobrado</div></div>
+        <div class="stat-chip"><div class="num" id="stat-pending">$0</div><div class="lbl">Pendiente por cobrar</div></div>
+      </div>
+      <div class="charge-list" id="charge-list-facturacion"></div>
+    </section>
+
+    <!-- CONFIGURACIÓN -->
+    <section id="view-configuracion" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Configuración</h2>
+          <p class="sub">Personaliza el nombre, logo, colores y tipografía de la app.</p>
+        </div>
+      </div>
+      <div class="settings-grid">
+        <div class="settings-card">
+          <h3>Identidad de la clínica</h3>
+          <div class="field"><label>Nombre de la clínica</label><input type="text" id="cfg-clinic-name"></div>
+          <div class="field"><label>Nombre del doctor/a (aparece en la parte superior)</label><input type="text" id="cfg-doctor-name" placeholder="Ej. Dr. Alexander Pérez"></div>
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--primary-dark);margin-bottom:6px;">Logo</label>
+          <img id="cfg-logo-preview" class="logo-preview" style="display:none;" alt="Logo actual">
+          <div id="cfg-logo-empty" class="logo-preview-empty">Sin logo</div>
+          <div class="photo-actions">
+            <label class="btn btn-ghost btn-sm">Subir logo<input type="file" id="cfg-logo-input" accept="image/*" style="display:none;"></label>
+            <button class="btn btn-danger btn-sm" id="cfg-logo-remove">Quitar logo</button>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Colores y tipografía</h3>
+          <div class="color-field"><label>Color principal</label><input type="color" id="cfg-primary-color"></div>
+          <div class="color-field"><label>Color de acento</label><input type="color" id="cfg-accent-color"></div>
+          <div class="color-field"><label>Color de fondo</label><input type="color" id="cfg-bg-color"></div>
+          <div class="field">
+            <label>Tipo de letra</label>
+            <select id="cfg-font"></select>
+          </div>
+          <div class="field">
+            <label>Tamaño de letra</label>
+            <select id="cfg-font-size">
+              <option value="13">Pequeña</option>
+              <option value="15">Normal</option>
+              <option value="17">Grande</option>
+              <option value="19">Muy grande</option>
+            </select>
+          </div>
+          <div class="font-preview" id="cfg-font-preview">Así se ve el texto con esta tipografía.</div>
+          <div class="field" style="margin-top:14px;">
+            <label>Mensaje de bienvenida (reemplaza el título "Dashboard")</label>
+            <input type="text" id="cfg-welcome-message" placeholder='Ej. "¡Bienvenida, Dra. García!"'>
+          </div>
+          <div class="modal-actions" style="justify-content:flex-start;margin-top:18px;">
+            <button class="btn btn-primary" id="cfg-save">Guardar cambios</button>
+          </div>
+        </div>
+        <div class="settings-card" id="cfg-users-card" style="grid-column:1/-1;display:none;">
+          <h3>Usuarios del sistema</h3>
+          <p class="sub" style="margin-bottom:14px;">Crea cuentas para tu secretaria u otro personal y elige qué secciones puede ver.</p>
+          <div id="users-list"></div>
+          <button class="btn btn-primary btn-sm" id="btn-new-user" style="margin-top:12px;">+ Nuevo usuario</button>
+        </div>
+        <div class="settings-card" id="cfg-backup-card" style="grid-column:1/-1;display:none;">
+          <h3>Respaldo de datos</h3>
+          <p class="sub" style="margin-bottom:14px;">Todo se guarda localmente en esta computadora. La app crea una copia de seguridad automática todos los días a la hora que elijas; también puedes hacer una manualmente.</p>
+          <div class="field-row" style="align-items:flex-end;">
+            <div class="field" style="max-width:160px;">
+              <label>Hora del respaldo diario</label>
+              <input type="time" id="cfg-backup-hour">
+            </div>
+            <div class="field" style="max-width:220px;">
+              <label style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="cfg-backup-enabled" style="width:auto;"> Respaldo automático activado
+              </label>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="cfg-backup-save" style="margin-bottom:2px;">Guardar horario</button>
+            <button class="btn btn-primary btn-sm" id="btn-backup-now" style="margin-bottom:2px;">Respaldar ahora</button>
+          </div>
+          <div class="field" style="margin-top:16px;">
+            <label>Carpeta sincronizada con Google Drive / OneDrive / Dropbox (opcional)</label>
+            <input type="text" id="cfg-backup-folder" placeholder="Ej. C:\Users\TuUsuario\Google Drive\Respaldos Clínica">
+          </div>
+          <p class="sub" style="margin:-4px 0 10px 0;">Cada respaldo se copiará automáticamente a esa carpeta. La app de Drive/OneDrive instalada en tu PC se encarga de subirla a internet cuando haya conexión.</p>
+          <div class="modal-actions" style="justify-content:flex-start;">
+            <button class="btn btn-ghost btn-sm" id="btn-copy-folder-now">Copiar el último respaldo a esa carpeta ahora</button>
+          </div>
+          <div id="backup-list" style="margin-top:14px;"></div>
+        </div>
+        <div class="settings-card" id="cfg-email-card" style="grid-column:1/-1;display:none;">
+          <h3>Correo (para enviar exámenes por email)</h3>
+          <p class="sub" style="margin-bottom:14px;">Configura una cuenta de correo para poder enviar exámenes y documentos directamente a los pacientes desde su ficha.</p>
+          <div class="field-row">
+            <div class="field"><label>Servidor SMTP</label><input type="text" id="cfg-smtp-host" placeholder="Ej. smtp.gmail.com"></div>
+            <div class="field" style="max-width:120px;"><label>Puerto</label><input type="text" id="cfg-smtp-port" placeholder="587"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Correo de la clínica</label><input type="email" id="cfg-smtp-user" placeholder="clinica@gmail.com"></div>
+            <div class="field"><label id="cfg-smtp-pw-label">Contraseña de aplicación</label><input type="password" id="cfg-smtp-password"></div>
+          </div>
+          <div class="field"><label>Nombre del remitente (opcional)</label><input type="text" id="cfg-smtp-from-name" placeholder="Ej. Clínica Dental García"></div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:14px;">
+            <input type="checkbox" id="cfg-smtp-tls" style="width:auto;"> Usar conexión segura (TLS) — recomendado
+          </label>
+          <p class="sub" style="margin-top:-6px;">Con Gmail necesitas crear una "contraseña de aplicación" en tu cuenta de Google (no tu contraseña normal). Este dato queda guardado únicamente en esta computadora.</p>
+          <div class="modal-actions" style="justify-content:flex-start;">
+            <button class="btn btn-primary btn-sm" id="cfg-email-save">Guardar configuración de correo</button>
+          </div>
+        </div>
+        <div class="settings-card" id="cfg-sync-card" style="grid-column:1/-1;display:none;">
+          <h3>Sincronización con tu versión en línea</h3>
+          <p class="sub" style="margin-bottom:14px;">Envía tu información más reciente de esta PC a tu versión en línea (por ejemplo, en PythonAnywhere), para consultarla remotamente. Esto <strong>reemplaza</strong> los datos de la versión en línea con los de esta PC — úsalo solo cuando esta computadora tenga la información más al día.</p>
+          <div class="field"><label>URL de tu versión en línea</label><input type="text" id="cfg-sync-url" placeholder="https://tuclinica.pythonanywhere.com"></div>
+          <div class="field-row">
+            <div class="field"><label>Usuario administrador (de esa versión)</label><input type="text" id="cfg-sync-user"></div>
+            <div class="field"><label id="cfg-sync-pw-label">Contraseña</label><input type="password" id="cfg-sync-password"></div>
+          </div>
+          <div class="modal-actions" style="justify-content:flex-start;gap:10px;">
+            <button class="btn btn-ghost btn-sm" id="cfg-sync-save">Guardar datos de conexión</button>
+            <button class="btn btn-primary btn-sm" id="btn-sync-push">⬆ Subir a mi versión en línea</button>
+          </div>
+          <p class="sub" id="sync-status" style="margin-top:10px;"></p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Modal: Paciente -->
+<div class="overlay" id="modal-patient">
+  <div class="modal">
+    <button class="close-x" data-close>✕</button>
+    <h3 id="patient-modal-title">Nuevo paciente</h3>
+    <p class="modal-sub">Información personal y clínica del paciente.</p>
+    <form id="patient-form">
+      <input type="hidden" id="p-id">
+      <div class="field"><label>Nombre completo *</label><input type="text" id="p-name" required></div>
+      <div class="field-row">
+        <div class="field"><label>Fecha de nacimiento</label><input type="date" id="p-dob"></div>
+        <div class="field"><label>Teléfono *</label><input type="text" id="p-phone" required></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Email</label><input type="email" id="p-email"></div>
+        <div class="field"><label>DUI / N.º de documento</label><input type="text" id="p-dui" placeholder="Ej. 04512345-6"></div>
+      </div>
+      <div class="field"><label>Dirección</label><input type="text" id="p-address"></div>
+      <div class="field"><label>Alergias</label><input type="text" id="p-allergies" placeholder="Ej. penicilina, látex…"></div>
+      <div class="field"><label>Antecedentes médicos</label><textarea id="p-history" placeholder="Condiciones relevantes, medicación actual…"></textarea></div>
+      <div class="field"><label>Notas</label><textarea id="p-notes" placeholder="Notas internas del consultorio"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar paciente</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Cita -->
+<div class="overlay" id="modal-appt">
+  <div class="modal">
+    <button class="close-x" data-close>✕</button>
+    <h3 id="appt-modal-title">Nueva cita</h3>
+    <p class="modal-sub">Agenda una cita para un paciente existente.</p>
+    <form id="appt-form">
+      <input type="hidden" id="a-id">
+      <div class="field">
+        <label>Paciente *</label>
+        <select id="a-patient" required></select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha *</label><input type="date" id="a-date" required></div>
+        <div class="field"><label>Hora *</label><input type="time" id="a-time" required></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Duración (min)</label>
+          <select id="a-duration">
+            <option value="15">15</option><option value="30" selected>30</option>
+            <option value="45">45</option><option value="60">60</option><option value="90">90</option>
+          </select>
+        </div>
+        <div class="field"><label>Estado</label>
+          <select id="a-status">
+            <option value="confirmada">Confirmada</option>
+            <option value="pendiente" selected>Pendiente</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Motivo</label><input type="text" id="a-reason" placeholder="Ej. limpieza, revisión, ortodoncia…"></div>
+      <div class="field"><label>Notas</label><textarea id="a-notes"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar cita</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Tratamiento / cargo -->
+<div class="overlay" id="modal-charge">
+  <div class="modal">
+    <button class="close-x" data-close>✕</button>
+    <h3 id="charge-modal-title">Nuevo tratamiento</h3>
+    <p class="modal-sub">Registra un tratamiento y su costo para un paciente.</p>
+    <form id="charge-form">
+      <input type="hidden" id="c-id">
+      <div class="field">
+        <label>Paciente *</label>
+        <select id="c-patient" required></select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha *</label><input type="date" id="c-date" required></div>
+        <div class="field"><label>Tratamiento *</label><input type="text" id="c-treatment" placeholder="Ej. limpieza, extracción…" required></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Costo</label><input type="number" id="c-cost" min="0" step="0.01" value="0"></div>
+        <div class="field"><label>Pagado</label><input type="number" id="c-paid" min="0" step="0.01" value="0"></div>
+      </div>
+      <div class="field"><label>Notas</label><textarea id="c-notes"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar tratamiento</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Perfil paciente -->
+<div class="overlay" id="modal-profile">
+  <div class="modal" style="max-width:620px;">
+    <button class="close-x" data-close>✕</button>
+    <div class="photo-row">
+      <div class="avatar" id="pf-avatar" style="width:64px;height:64px;font-size:20px;"></div>
+      <div class="photo-actions">
+        <label class="btn btn-ghost btn-sm">Cambiar foto<input type="file" id="pf-photo-input" accept="image/*" style="display:none;"></label>
+        <button class="btn btn-danger btn-sm" id="pf-photo-remove">Quitar foto</button>
+      </div>
+    </div>
+    <div class="profile-header" style="margin-top:10px;">
+      <div>
+        <h3 id="pf-name"></h3>
+        <div class="sub" id="pf-meta"></div>
+      </div>
+    </div>
+
+    <div class="pf-tabs">
+      <button type="button" class="pf-tab active" data-pf-tab="info">Información</button>
+      <button type="button" class="pf-tab" data-pf-tab="tratamientos">Tratamientos</button>
+      <button type="button" class="pf-tab" data-pf-tab="diagnostico">Diagnóstico</button>
+      <button type="button" class="pf-tab" data-pf-tab="presupuestos">Presupuestos</button>
+    </div>
+
+    <!-- Pestaña: Información -->
+    <div class="pf-panel active" id="pf-panel-info">
+      <div class="profile-grid">
+        <div><div class="k">Teléfono</div><div class="v" id="pf-phone"></div></div>
+        <div><div class="k">Email</div><div class="v" id="pf-email"></div></div>
+        <div><div class="k">Fecha de nacimiento</div><div class="v" id="pf-dob"></div></div>
+        <div><div class="k">DUI / N.º de documento</div><div class="v" id="pf-dui"></div></div>
+        <div><div class="k">Dirección</div><div class="v" id="pf-address"></div></div>
+      </div>
+      <div class="profile-block"><div class="k">Alergias</div><div class="v" id="pf-allergies"></div></div>
+      <div class="profile-block"><div class="k">Antecedentes médicos</div><div class="v" id="pf-history"></div></div>
+      <div class="profile-block"><div class="k">Notas</div><div class="v" id="pf-notes"></div></div>
+      <div class="profile-actions">
+        <button class="btn btn-ghost btn-sm" id="pf-edit">Editar ficha</button>
+        <button class="btn btn-primary btn-sm" id="pf-new-appt">+ Nueva cita</button>
+        <button class="btn btn-ghost btn-sm" id="pf-print-account">Imprimir estado de cuenta</button>
+        <button class="btn btn-danger btn-sm" id="pf-delete">Eliminar paciente</button>
+      </div>
+
+      <h4 class="hist-title">Exámenes y radiografías</h4>
+      <div class="doc-upload-row">
+        <label class="btn btn-ghost btn-sm">Subir archivo<input type="file" id="pf-doc-input" accept="image/*,.pdf" style="display:none;"></label>
+        <select id="pf-doc-category">
+          <option value="radiografia">Radiografía</option>
+          <option value="examen">Examen</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div class="doc-grid" id="pf-doc-grid"></div>
+
+      <h4 class="hist-title" style="margin-top:18px;">Historial de citas</h4>
+      <div id="pf-history-list"></div>
+    </div>
+
+    <!-- Pestaña: Tratamientos -->
+    <div class="pf-panel" id="pf-panel-tratamientos">
+      <div class="view-head" style="margin-bottom:12px;">
+        <p class="sub" style="margin:0;">Tratamientos realizados y pagos de este paciente.</p>
+        <button class="btn btn-primary btn-sm" id="pf-new-charge">+ Nuevo tratamiento</button>
+      </div>
+      <div id="pf-charge-list"></div>
+    </div>
+
+    <!-- Pestaña: Diagnóstico (odontograma) -->
+    <div class="pf-panel" id="pf-panel-diagnostico">
+      <div class="view-head" style="margin-bottom:12px;">
+        <p class="sub" style="margin:0;">Odontograma y receta del paciente.</p>
+        <button class="btn btn-ghost btn-sm" id="pf-print-diagnosis">Imprimir diagnóstico</button>
+      </div>
+      <div class="tooth-legend">
+        <span><i style="background:var(--card);border:1px solid var(--border);"></i>Sano</span>
+        <span><i style="background:var(--danger-light);"></i>Caries</span>
+        <span><i style="background:var(--primary-light);"></i>Obturado</span>
+        <span><i style="background:var(--warn-light);"></i>Corona</span>
+        <span><i style="background:#EFE6F7;"></i>Endodoncia</span>
+        <span><i style="background:var(--ok-light);"></i>Implante</span>
+        <span><i style="background:#EEE;"></i>Ausente / Extraído</span>
+      </div>
+      <p class="sub" style="margin-bottom:6px;">Arcada superior</p>
+      <div class="tooth-arch" id="tooth-arch-top"></div>
+      <p class="sub" style="margin-bottom:6px;">Arcada inferior</p>
+      <div class="tooth-arch" id="tooth-arch-bottom"></div>
+      <div class="settings-card" style="margin-top:18px;padding:16px 18px;">
+        <h3 style="margin-bottom:6px;">Receta de medicamentos</h3>
+        <p class="sub" style="margin-bottom:12px;">Indica medicamentos, dosis y recomendaciones para este paciente.</p>
+        <div class="field"><label>Medicamentos y dosis</label><textarea id="rx-medications" rows="4" placeholder="Ej. Ibuprofeno 400 mg: tomar 1 tableta cada 8 horas por 3 días."></textarea></div>
+        <div class="field"><label>Indicaciones</label><textarea id="rx-instructions" rows="3" placeholder="Ej. Tomar después de los alimentos. No automedicarse."></textarea></div>
+        <div class="modal-actions" style="margin-top:4px;justify-content:flex-start;">
+          <button class="btn btn-primary btn-sm" id="rx-save">Guardar receta</button>
+          <button class="btn btn-ghost btn-sm" id="rx-print">Imprimir receta</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pestaña: Presupuestos -->
+    <div class="pf-panel" id="pf-panel-presupuestos">
+      <div class="view-head" style="margin-bottom:12px;">
+        <p class="sub" style="margin:0;">Propuestas de tratamiento para este paciente.</p>
+        <button class="btn btn-primary btn-sm" id="pf-new-budget">+ Nuevo presupuesto</button>
+      </div>
+      <div id="pf-budget-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Visor de foto del paciente -->
+<div class="overlay" id="modal-photo-viewer" style="z-index:70;align-items:center;">
+  <div class="modal" style="max-width:720px;padding:12px;background:transparent;box-shadow:none;">
+    <button class="close-x" data-close style="position:static;display:block;margin-left:auto;color:white;background:rgba(0,0,0,.45);border-radius:50%;width:34px;height:34px;">✕</button>
+    <img id="photo-viewer-image" alt="Foto ampliada del paciente" style="display:block;width:100%;max-height:78vh;object-fit:contain;border-radius:12px;background:#fff;">
+  </div>
+</div>
+
+
+<!-- Modal: Cambiar contraseña -->
+<div class="overlay" id="modal-pw">
+  <div class="modal" style="max-width:380px;">
+    <button class="close-x" data-close>✕</button>
+    <h3>Cambiar contraseña</h3>
+    <p class="modal-sub">Actualiza tu contraseña de acceso.</p>
+    <form id="pw-form">
+      <div class="field"><label>Contraseña actual</label><input type="password" id="pw-current" required></div>
+      <div class="field"><label>Nueva contraseña (mín. 8 caracteres)</label><input type="password" id="pw-new" required minlength="8"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Actualizar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Enviar documento por correo -->
+<div class="overlay" id="modal-send-email">
+  <div class="modal" style="max-width:400px;">
+    <button class="close-x" data-close>✕</button>
+    <h3>Enviar por correo</h3>
+    <p class="modal-sub">Archivo: <strong id="se-doc-name"></strong></p>
+    <form id="send-email-form">
+      <div class="field"><label>Correo del destinatario</label><input type="email" id="se-to" required></div>
+      <div class="field"><label>Mensaje (opcional)</label><textarea id="se-message" rows="3" placeholder="Se usará un mensaje predeterminado si lo dejas vacío."></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Enviar correo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Modal: Usuario del sistema -->
+<div class="overlay" id="modal-user">
+  <div class="modal" style="max-width:440px;">
+    <button class="close-x" data-close>✕</button>
+    <h3 id="user-modal-title">Nuevo usuario</h3>
+    <form id="user-form">
+      <div class="field"><label>Nombre para mostrar (opcional)</label><input type="text" id="u-display-name" placeholder="Ej. Karla (secretaria)"></div>
+      <div class="field"><label>Usuario</label><input type="text" id="u-username" required minlength="3"></div>
+      <div class="field"><label id="u-password-label">Contraseña (mín. 8 caracteres)</label><input type="password" id="u-password" minlength="8"></div>
+      <div class="field">
+        <label>Rol</label>
+        <select id="u-role">
+          <option value="secretaria">Secretaria / personal</option>
+          <option value="admin">Administrador</option>
+        </select>
+      </div>
+      <div class="field" id="u-perms-wrap">
+        <label>Puede ver estas secciones</label>
+        <div class="perm-grid" id="u-perms-grid"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar usuario</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  let state = { patients: [], appointments: [], charges: [], settings: null, budgets: [], users: [], me: null };
+  let currentPatientId = null;
+  let currentPatientDocs = [];
+  let odontoPatientId = null;
+  let odontoTeeth = [];
+  let currentPrescription = {medications:'', instructions:'', updated_at:''};
+  let currentToothNum = null;
+  let budgetItemCounter = 0;
+  let incomeVisible = false;
+  let lastTodayIncome = 0;
+  const VIEW_LABELS = {
+    pacientes:'Pacientes', agenda:'Agenda', calendario:'Calendario', tratamientos:'Tratamientos',
+    odontograma:'Exámenes', presupuestos:'Presupuestos', facturacion:'Facturación',
+  };
+  const VIEW_KEYS = Object.keys(VIEW_LABELS);
+  let agendaDate = new Date();
+  let calMonth = new Date();
+  calMonth.setDate(1);
+
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const fmtDate = d => {
+    const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  };
+  const parseDate = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  const initials = name => name.trim().split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('');
+  const DOW = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+  function toast(msg){
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  async function api(path, options={}){
+    const opts = {...options};
+    if(opts.body && !(opts.body instanceof FormData)){
+      opts.headers = {'Content-Type': 'application/json', ...(opts.headers||{})};
+    }
+    const res = await fetch(path, opts);
+    if(res.status === 401){ window.location = '/login'; throw new Error('No autenticado'); }
+    let body = null;
+    try{ body = await res.json(); }catch(e){ /* sin cuerpo */ }
+    if(!res.ok){
+      throw new Error((body && body.error) || 'Error de servidor');
+    }
+    return body;
+  }
+
+  async function safeApi(path){
+    try{ return await api(path); }catch(e){ return []; }
+  }
+
+  async function loadData(){
+    try{
+      state.me = await api('/api/me');
+    }catch(e){
+      console.error(e);
+      toast('No se pudo cargar la sesión.');
+      renderAll();
+      return;
+    }
+    try{
+      state.settings = await api('/api/settings');
+      applyTheme(state.settings);
+    }catch(e){ console.error(e); }
+
+    const canPatients = hasPerm('pacientes');
+    const canAgenda = hasPerm('agenda');
+    const canCharges = hasPerm('tratamientos') || hasPerm('facturacion');
+    const canBudgets = hasPerm('presupuestos');
+
+    const [patients, appointments, charges, budgets] = await Promise.all([
+      canPatients ? safeApi('/api/patients') : [],
+      canAgenda ? safeApi('/api/appointments') : [],
+      canCharges ? safeApi('/api/charges') : [],
+      canBudgets ? safeApi('/api/budgets') : [],
+    ]);
+    state.patients = patients;
+    state.appointments = appointments;
+    state.charges = charges;
+    state.budgets = budgets;
+
+    applyPermissions();
+    renderAll();
+  }
+
+  function patientById(id){ return state.patients.find(p=>p.id===id); }
+  function apptsForPatient(id){
+    return state.appointments.filter(a=>a.patientId===id).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+  }
+  function nextApptForPatient(id){
+    const now = new Date(); const todayStr = fmtDate(now);
+    const upcoming = state.appointments.filter(a=>a.patientId===id && a.status!=='cancelada' && (a.date>todayStr || (a.date===todayStr)))
+      .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+    return upcoming[0] || null;
+  }
+  function avatarInner(p){
+    return p.photoUrl ? `<img src="${p.photoUrl}" alt="${escapeHtml(p.name)}">` : escapeHtml(initials(p.name));
+  }
+  function money(n){
+    return '$' + (Number(n)||0).toLocaleString('es', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function applyTheme(settings){
+    if(!settings) return;
+    const root = document.documentElement;
+    if(settings.primary_color) root.style.setProperty('--primary', settings.primary_color);
+    if(settings.accent_color) root.style.setProperty('--accent', settings.accent_color);
+    if(settings.bg_color) root.style.setProperty('--bg', settings.bg_color);
+    if(settings.font_size) root.style.setProperty('--ui-zoom', (parseInt(settings.font_size) / 15));
+    const fontStack = {
+      'Space Grotesk': "'Space Grotesk', sans-serif",
+      'Inter': "'Inter', sans-serif",
+      'Poppins': "'Poppins', sans-serif",
+      'Merriweather': "'Merriweather', serif",
+      'IBM Plex Mono': "'IBM Plex Mono', monospace",
+    };
+    const stack = fontStack[settings.font_family] || fontStack['Space Grotesk'];
+    root.style.setProperty('--font-display', stack);
+    root.style.setProperty('--font-body', stack);
+    document.title = settings.clinic_name + ' · Gestión de pacientes y agenda';
+    $('#brand-name').textContent = settings.clinic_name;
+    if(settings.logoUrl){
+      $('#brand-logo').src = settings.logoUrl;
+      $('#brand-logo').style.display = 'block';
+      $('#brand-tooth').style.display = 'none';
+    }else{
+      $('#brand-logo').style.display = 'none';
+      $('#brand-tooth').style.display = 'block';
+    }
+    if(settings.doctor_name){
+      $('#topbar-doctor-name').textContent = settings.doctor_name;
+      $('#topbar-doctor').style.display = 'flex';
+    }else{
+      $('#topbar-doctor').style.display = 'none';
+    }
+    $('#dashboard-title').textContent = settings.welcome_message || 'Dashboard';
+  }
+
+  /* ---------------- PERMISOS ---------------- */
+  function hasPerm(key){
+    if(!state.me) return true;
+    if(state.me.role === 'admin') return true;
+    return state.me.permissions.includes(key);
+  }
+
+  function applyPermissions(){
+    if(!state.me) return;
+    const isAdmin = state.me.role === 'admin';
+    $('#cfg-users-card').style.display = isAdmin ? 'block' : 'none';
+    $('#cfg-backup-card').style.display = isAdmin ? 'block' : 'none';
+    $('#cfg-email-card').style.display = isAdmin ? 'block' : 'none';
+    $('#cfg-sync-card').style.display = isAdmin ? 'block' : 'none';
+    $$('.navbtn').forEach(btn=>{
+      const key = btn.dataset.view;
+      if(key === 'configuracion'){
+        btn.style.display = isAdmin ? '' : 'none';
+        return;
+      }
+      if(key === 'dashboard'){
+        btn.style.display = isAdmin ? '' : 'none';
+        return;
+      }
+      btn.style.display = (isAdmin || hasPerm(key)) ? '' : 'none';
+    });
+    if(!isAdmin){
+      const active = $('.navbtn.active');
+      if(!active || active.style.display === 'none'){
+        const firstVisible = $$('.navbtn').find(b=>b.style.display !== 'none');
+        if(firstVisible) switchView(firstVisible.dataset.view);
+      }
+    }
+    $$('.pf-tab').forEach(tab=>{
+      const permKey = PF_TAB_PERM[tab.dataset.pfTab];
+      tab.style.display = (!permKey || isAdmin || hasPerm(permKey)) ? '' : 'none';
+    });
+  }
+
+  /* ---------------- NAV ---------------- */
+  function switchView(key){
+    $$('.navbtn').forEach(b=>b.classList.remove('active'));
+    const btn = $(`.navbtn[data-view="${key}"]`);
+    if(btn) btn.classList.add('active');
+    $$('.view').forEach(v=>v.classList.remove('active'));
+    $('#view-'+key).classList.add('active');
+    if(key==='agenda') renderAgenda();
+    if(key==='facturacion') renderBillingView();
+    if(key==='configuracion') renderSettingsForm();
+    if(key==='dashboard') renderDashboard();
+  }
+  $$('.navbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=> switchView(btn.dataset.view));
+  });
+
+  /* ---------------- RENDER: PACIENTES ---------------- */
+  function renderPatients(filter=''){
+    const list = $('#patient-list');
+    const f = filter.trim().toLowerCase();
+    let items = state.patients.slice().sort((a,b)=>a.name.localeCompare(b.name));
+    if(f) items = items.filter(p => p.name.toLowerCase().includes(f) || (p.phone||'').includes(f));
+
+    $('#stat-total-patients').textContent = state.patients.length;
+    const todayStr = fmtDate(new Date());
+    $('#stat-today-count').textContent = state.appointments.filter(a=>a.date===todayStr && a.status!=='cancelada').length;
+    const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate()+7);
+    $('#stat-week-count').textContent = state.appointments.filter(a=>{
+      const d = parseDate(a.date);
+      return a.status!=='cancelada' && d >= new Date(new Date().setHours(0,0,0,0)) && d <= weekEnd;
+    }).length;
+
+    if(items.length===0){
+      list.innerHTML = `<div class="empty-state"><div class="icon">🦷</div>Aún no hay pacientes registrados.<br>Usa "Nuevo paciente" para crear la primera ficha.</div>`;
+      return;
+    }
+    list.innerHTML = items.map(p=>{
+      const next = nextApptForPatient(p.id);
+      return `<div class="patient-card" data-id="${p.id}">
+        <div class="who">
+          <div class="avatar">${avatarInner(p)}</div>
+          <div>
+            <div class="name">${escapeHtml(p.name)}</div>
+            <div class="meta">${escapeHtml(p.phone||'Sin teléfono')}${p.email? ' · '+escapeHtml(p.email):''}</div>
+          </div>
+        </div>
+        <div class="next-appt">${next ? `Próxima cita<br><strong>${fmtHuman(next.date)} · ${next.time}</strong>` : '<span class="none">Sin citas próximas</span>'}</div>
+      </div>`;
+    }).join('');
+    $$('.patient-card', list).forEach(card=>{
+      card.addEventListener('click', ()=> openProfile(card.dataset.id));
+    });
+  }
+  function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function fmtHuman(dateStr){
+    const d = parseDate(dateStr);
+    return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}`;
+  }
+
+  $('#patient-search').addEventListener('input', e => renderPatients(e.target.value));
+
+  /* ---------------- MODAL: PACIENTE ---------------- */
+  function openPatientModal(patient=null){
+    $('#patient-modal-title').textContent = patient ? 'Editar paciente' : 'Nuevo paciente';
+    $('#p-id').value = patient?.id || '';
+    $('#p-name').value = patient?.name || '';
+    $('#p-dob').value = patient?.dob || '';
+    $('#p-phone').value = patient?.phone || '';
+    $('#p-email').value = patient?.email || '';
+    $('#p-dui').value = patient?.dui || '';
+    $('#p-address').value = patient?.address || '';
+    $('#p-allergies').value = patient?.allergies || '';
+    $('#p-history').value = patient?.history || '';
+    $('#p-notes').value = patient?.notes || '';
+    openOverlay('#modal-patient');
+  }
+  $('#btn-new-patient').addEventListener('click', ()=>openPatientModal());
+
+  $('#patient-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const id = $('#p-id').value;
+    const payload = {
+      name: $('#p-name').value.trim(),
+      dob: $('#p-dob').value,
+      phone: $('#p-phone').value.trim(),
+      email: $('#p-email').value.trim(),
+      dui: $('#p-dui').value.trim(),
+      address: $('#p-address').value.trim(),
+      allergies: $('#p-allergies').value.trim(),
+      history: $('#p-history').value.trim(),
+      notes: $('#p-notes').value.trim(),
+    };
+    try{
+      let saved;
+      if(id){
+        saved = await api('/api/patients/'+id, {method:'PUT', body: JSON.stringify(payload)});
+        const idx = state.patients.findIndex(p=>p.id===id);
+        if(idx>=0) state.patients[idx] = saved;
+      }else{
+        saved = await api('/api/patients', {method:'POST', body: JSON.stringify(payload)});
+        state.patients.push(saved);
+      }
+      closeOverlays();
+      renderPatients($('#patient-search').value);
+      toast('Paciente guardado');
+      if(currentPatientId===saved.id) openProfile(saved.id);
+    }catch(err){
+      toast(err.message);
+    }
+  });
+
+  /* ---------------- PERFIL ---------------- */
+  async function openProfile(id){
+    const p = patientById(id);
+    if(!p) return;
+    currentPatientId = id;
+    switchProfileTab('info');
+    $('#pf-avatar').innerHTML = avatarInner(p);
+    $('#pf-avatar').classList.toggle('has-photo', !!p.photo);
+    $('#pf-name').textContent = p.name;
+    $('#pf-meta').textContent = p.dob ? `Nacimiento: ${fmtHuman(p.dob)} · ${new Date().getFullYear()-parseDate(p.dob).getFullYear()} años aprox.` : 'Sin fecha de nacimiento registrada';
+    $('#pf-phone').textContent = p.phone || '—';
+    $('#pf-email').textContent = p.email || '—';
+    $('#pf-dob').textContent = p.dob ? fmtHuman(p.dob) : '—';
+    $('#pf-dui').textContent = p.dui || '—';
+    $('#pf-address').textContent = p.address || '—';
+    $('#pf-allergies').textContent = p.allergies || 'Ninguna registrada';
+    $('#pf-history').textContent = p.history || 'Sin antecedentes registrados';
+    $('#pf-notes').textContent = p.notes || '—';
+
+    const hist = apptsForPatient(id);
+    const histEl = $('#pf-history-list');
+    histEl.innerHTML = hist.length ? hist.map(a=>`
+      <div class="hist-item">
+        <span class="d">${fmtHuman(a.date)} · ${a.time}</span>
+        <span>${escapeHtml(a.reason||'Cita')}</span>
+        <span class="badge ${a.status}">${a.status}</span>
+      </div>`).join('') : `<div class="hist-item"><span class="d" style="color:var(--muted)">Sin citas registradas todavía</span></div>`;
+
+    renderPatientCharges(id);
+    renderPatientDocs([]);
+    openOverlay('#modal-profile');
+    try{
+      currentPatientDocs = await api(`/api/patients/${id}/documents`);
+      renderPatientDocs(currentPatientDocs);
+    }catch(err){
+      console.error(err);
+    }
+  }
+  function renderPatientCharges(id){
+    const items = state.charges.filter(c=>c.patientId===id).sort((a,b)=>b.date.localeCompare(a.date));
+    const el = $('#pf-charge-list');
+    el.innerHTML = items.length ? items.map(c=>`
+      <div class="hist-item">
+        <span class="d">${fmtHuman(c.date)}</span>
+        <span>${escapeHtml(c.treatment)} · ${money(c.cost)}</span>
+        <span class="badge ${c.status}">${c.status}</span>
+        <button type="button" class="btn btn-ghost btn-sm" data-print-charge="${c.id}">Imprimir</button>
+      </div>`).join('') : `<div class="hist-item"><span class="d" style="color:var(--muted)">Sin tratamientos registrados todavía</span></div>`;
+    $$('[data-print-charge]', el).forEach(btn=>{
+      btn.addEventListener('click', ()=> printCharge(state.charges.find(c=>c.id===btn.dataset.printCharge)));
+    });
+  }
+  function renderPatientDocs(docs){
+    const grid = $('#pf-doc-grid');
+    if(!docs.length){
+      grid.innerHTML = `<div class="doc-empty">Sin exámenes o radiografías subidas todavía.</div>`;
+      return;
+    }
+    grid.innerHTML = docs.map(d=>{
+      const isImg = /\.(jpg|jpeg|png|webp|gif)$/i.test(d.filename);
+      const thumb = isImg ? `<img class="thumb" src="${d.url}" alt="${escapeHtml(d.original_name)}">` : `<div class="thumb-icon">📄</div>`;
+      return `<div class="doc-item">
+        <span class="doc-cat">${d.category}</span>
+        <button type="button" class="doc-del" data-doc-del="${d.id}" title="Eliminar">✕</button>
+        <a href="${d.url}" target="_blank" rel="noopener" data-doc-open>
+          ${thumb}
+          <div class="doc-name">${escapeHtml(d.original_name)}</div>
+        </a>
+        <div class="doc-send-row">
+          <button type="button" class="doc-send-btn doc-send-wa" data-doc-id="${d.id}" title="Enviar por WhatsApp">💬</button>
+          <button type="button" class="doc-send-btn doc-send-mail" data-doc-id="${d.id}" title="Enviar por correo">✉️</button>
+        </div>
+      </div>`;
+    }).join('');
+    $$('[data-doc-del]', grid).forEach(btn=>{
+      btn.addEventListener('click', async e=>{
+        e.preventDefault(); e.stopPropagation();
+        if(!confirm('¿Eliminar este archivo?')) return;
+        try{
+          await api('/api/documents/'+btn.dataset.docDel, {method:'DELETE'});
+          currentPatientDocs = currentPatientDocs.filter(d=>d.id!==btn.dataset.docDel);
+          renderPatientDocs(currentPatientDocs);
+        }catch(err){ toast(err.message); }
+      });
+    });
+    $$('.doc-send-wa', grid).forEach(btn=>{
+      btn.addEventListener('click', e=>{
+        e.preventDefault(); e.stopPropagation();
+        sendDocViaWhatsapp(btn.dataset.docId);
+      });
+    });
+    $$('.doc-send-mail', grid).forEach(btn=>{
+      btn.addEventListener('click', e=>{
+        e.preventDefault(); e.stopPropagation();
+        openSendEmailModal(btn.dataset.docId);
+      });
+    });
+  }
+
+  function sendDocViaWhatsapp(docId){
+    const doc = currentPatientDocs.find(d=>d.id===docId);
+    const p = patientById(currentPatientId);
+    if(!doc || !p) return;
+    if(!p.phone){ toast('Este paciente no tiene teléfono registrado.'); return; }
+    let digits = p.phone.replace(/\D/g,'');
+    if(digits.length <= 8) digits = '503' + digits; // asume El Salvador si guardaron el número local
+    const clinic = state.settings ? state.settings.clinic_name : 'la clínica';
+    const text = encodeURIComponent(`Hola ${p.name}, te comparto tu documento "${doc.original_name}" de ${clinic}. Te lo adjunto a continuación.`);
+    window.open(doc.url, '_blank');
+    window.open(`https://wa.me/${digits}?text=${text}`, '_blank');
+    toast('Se abrió el archivo y WhatsApp — adjúntalo manualmente en el chat.');
+  }
+
+  let sendEmailDocId = null;
+  function openSendEmailModal(docId){
+    const doc = currentPatientDocs.find(d=>d.id===docId);
+    const p = patientById(currentPatientId);
+    if(!doc) return;
+    sendEmailDocId = docId;
+    $('#se-doc-name').textContent = doc.original_name;
+    $('#se-to').value = (p && p.email) ? p.email : '';
+    $('#se-message').value = '';
+    openOverlay('#modal-send-email');
+  }
+  $('#send-email-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    if(!sendEmailDocId) return;
+    const btn = $('#send-email-form button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    try{
+      await api(`/api/documents/${sendEmailDocId}/send-email`, {method:'POST', body: JSON.stringify({
+        to: $('#se-to').value.trim(),
+        message: $('#se-message').value.trim(),
+      })});
+      closeOverlays();
+      toast('Correo enviado');
+    }catch(err){ toast(err.message); }
+    btn.disabled = false; btn.textContent = 'Enviar correo';
+  });
+  $('#pf-photo-input').addEventListener('change', async e=>{
+    const file = e.target.files[0];
+    if(!file || !currentPatientId) return;
+    const fd = new FormData(); fd.append('photo', file);
+    try{
+      const saved = await api(`/api/patients/${currentPatientId}/photo`, {method:'POST', body: fd});
+      const idx = state.patients.findIndex(p=>p.id===currentPatientId);
+      if(idx>=0) state.patients[idx] = saved;
+      $('#pf-avatar').innerHTML = avatarInner(saved);
+      $('#pf-avatar').classList.toggle('has-photo', !!saved.photo);
+      renderPatients($('#patient-search').value);
+      toast('Foto actualizada');
+    }catch(err){ toast(err.message); }
+    e.target.value = '';
+  });
+  $('#pf-photo-remove').addEventListener('click', async ()=>{
+    if(!currentPatientId) return;
+    try{
+      const saved = await api(`/api/patients/${currentPatientId}/photo`, {method:'DELETE'});
+      const idx = state.patients.findIndex(p=>p.id===currentPatientId);
+      if(idx>=0) state.patients[idx] = saved;
+      $('#pf-avatar').innerHTML = avatarInner(saved);
+      $('#pf-avatar').classList.toggle('has-photo', !!saved.photo);
+      renderPatients($('#patient-search').value);
+      toast('Foto eliminada');
+    }catch(err){ toast(err.message); }
+  });
+  $('#pf-doc-input').addEventListener('change', async e=>{
+    const file = e.target.files[0];
+    if(!file || !currentPatientId) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('category', $('#pf-doc-category').value);
+    try{
+      const saved = await api(`/api/patients/${currentPatientId}/documents`, {method:'POST', body: fd});
+      currentPatientDocs = [saved, ...currentPatientDocs];
+      renderPatientDocs(currentPatientDocs);
+      toast('Archivo subido');
+    }catch(err){ toast(err.message); }
+    e.target.value = '';
+  });
+  $('#pf-edit').addEventListener('click', ()=> openPatientModal(patientById(currentPatientId)));
+  $('#pf-avatar').addEventListener('click', ()=>{
+    const p = patientById(currentPatientId);
+    if(!p || !p.photo){ toast('Este paciente no tiene una foto registrada.'); return; }
+    $('#photo-viewer-image').src = p.photoUrl;
+    openOverlay('#modal-photo-viewer');
+  });
+  $('#pf-new-appt').addEventListener('click', ()=> openApptModal(null, currentPatientId));
+  $('#pf-new-charge').addEventListener('click', ()=> openChargeModal(null, currentPatientId));
+
+  const PF_TAB_PERM = {tratamientos:'tratamientos', diagnostico:'odontograma', presupuestos:'presupuestos'};
+  function switchProfileTab(tabKey){
+    if(PF_TAB_PERM[tabKey] && !hasPerm(PF_TAB_PERM[tabKey])){
+      toast('No tienes permiso para ver esta sección.');
+      return;
+    }
+    $$('.pf-tab').forEach(t=>t.classList.toggle('active', t.dataset.pfTab===tabKey));
+    $$('.pf-panel').forEach(p=>p.classList.remove('active'));
+    $('#pf-panel-'+tabKey).classList.add('active');
+    if(tabKey==='tratamientos') renderPatientCharges(currentPatientId);
+    if(tabKey==='diagnostico'){ odontoPatientId = currentPatientId; loadOdontogram(currentPatientId); }
+    if(tabKey==='presupuestos') renderProfileBudgets();
+  }
+  $$('.pf-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=> switchProfileTab(tab.dataset.pfTab));
+  });
+  $('#pf-delete').addEventListener('click', async ()=>{
+    const p = patientById(currentPatientId);
+    if(!p) return;
+    if(confirm(`¿Eliminar a ${p.name} y todas sus citas? Esta acción no se puede deshacer.`)){
+      try{
+        await api('/api/patients/'+p.id, {method:'DELETE'});
+        state.patients = state.patients.filter(x=>x.id!==p.id);
+        state.appointments = state.appointments.filter(a=>a.patientId!==p.id);
+        closeOverlays();
+        renderPatients($('#patient-search').value);
+        toast('Paciente eliminado');
+      }catch(err){
+        toast(err.message);
+      }
+    }
+  });
+
+  /* ---------------- MODAL: CITA ---------------- */
+  function fillPatientSelect(selectedId, selEl){
+    const sel = selEl || $('#a-patient');
+    const sorted = state.patients.slice().sort((a,b)=>a.name.localeCompare(b.name));
+    sel.innerHTML = sorted.length
+      ? sorted.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')
+      : `<option value="">— Primero crea un paciente —</option>`;
+    if(selectedId) sel.value = selectedId;
+  }
+  function openApptModal(appt=null, presetPatientId=null, presetDate=null){
+    if(state.patients.length===0){
+      toast('Crea un paciente antes de agendar una cita');
+      return;
+    }
+    $('#appt-modal-title').textContent = appt ? 'Editar cita' : 'Nueva cita';
+    fillPatientSelect(appt?.patientId || presetPatientId);
+    $('#a-id').value = appt?.id || '';
+    $('#a-date').value = appt?.date || presetDate || fmtDate(agendaDate);
+    $('#a-time').value = appt?.time || '09:00';
+    $('#a-duration').value = appt?.duration || '30';
+    $('#a-status').value = appt?.status || 'pendiente';
+    $('#a-reason').value = appt?.reason || '';
+    $('#a-notes').value = appt?.notes || '';
+    closeOverlays();
+    openOverlay('#modal-appt');
+  }
+  $('#btn-new-appt').addEventListener('click', ()=> openApptModal());
+
+  $('#appt-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const id = $('#a-id').value;
+    const payload = {
+      patientId: $('#a-patient').value,
+      date: $('#a-date').value,
+      time: $('#a-time').value,
+      duration: $('#a-duration').value,
+      status: $('#a-status').value,
+      reason: $('#a-reason').value.trim(),
+      notes: $('#a-notes').value.trim(),
+    };
+    if(!payload.patientId){ toast('Selecciona un paciente'); return; }
+    try{
+      let saved;
+      if(id){
+        saved = await api('/api/appointments/'+id, {method:'PUT', body: JSON.stringify(payload)});
+        const idx = state.appointments.findIndex(a=>a.id===id);
+        if(idx>=0) state.appointments[idx] = saved;
+      }else{
+        saved = await api('/api/appointments', {method:'POST', body: JSON.stringify(payload)});
+        state.appointments.push(saved);
+      }
+      closeOverlays();
+      toast('Cita guardada');
+      renderAgenda();
+      renderCalendar();
+      renderPatients($('#patient-search').value);
+    }catch(err){
+      toast(err.message);
+    }
+  });
+
+  /* ---------------- MODAL: TRATAMIENTO / CARGO ---------------- */
+  function openChargeModal(charge=null, presetPatientId=null){
+    if(state.patients.length===0){
+      toast('Crea un paciente antes de registrar un tratamiento');
+      return;
+    }
+    $('#charge-modal-title').textContent = charge ? 'Editar tratamiento' : 'Nuevo tratamiento';
+    fillPatientSelect(charge?.patientId || presetPatientId, $('#c-patient'));
+    $('#c-id').value = charge?.id || '';
+    $('#c-date').value = charge?.date || fmtDate(new Date());
+    $('#c-treatment').value = charge?.treatment || '';
+    $('#c-cost').value = charge?.cost ?? 0;
+    $('#c-paid').value = charge?.paid ?? 0;
+    $('#c-notes').value = charge?.notes || '';
+    closeOverlays();
+    openOverlay('#modal-charge');
+  }
+  
+  $('#charge-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const id = $('#c-id').value;
+    const payload = {
+      patientId: $('#c-patient').value,
+      date: $('#c-date').value,
+      treatment: $('#c-treatment').value.trim(),
+      cost: $('#c-cost').value,
+      paid: $('#c-paid').value,
+      notes: $('#c-notes').value.trim(),
+    };
+    if(!payload.patientId){ toast('Selecciona un paciente'); return; }
+    try{
+      let saved;
+      if(id){
+        saved = await api('/api/charges/'+id, {method:'PUT', body: JSON.stringify(payload)});
+        const idx = state.charges.findIndex(c=>c.id===id);
+        if(idx>=0) state.charges[idx] = saved;
+      }else{
+        saved = await api('/api/charges', {method:'POST', body: JSON.stringify(payload)});
+        state.charges.push(saved);
+      }
+      $('#modal-charge').classList.remove('open');
+      toast('Tratamiento guardado');
+      renderBillingView();
+      if(currentPatientId) renderPatientCharges(currentPatientId);
+    }catch(err){
+      toast(err.message);
+    }
+  });
+
+  async function deleteCharge(id){
+    if(!confirm('¿Eliminar este tratamiento?')) return;
+    try{
+      await api('/api/charges/'+id, {method:'DELETE'});
+      state.charges = state.charges.filter(c=>c.id!==id);
+      renderBillingView();
+      if(currentPatientId) renderPatientCharges(currentPatientId);
+    }catch(err){ toast(err.message); }
+  }
+
+  async function registerPayment(charge){
+    const amountStr = prompt(`Registrar pago para "${charge.treatment}"\nSaldo pendiente: ${money(charge.balance)}\n\nMonto a abonar:`, charge.balance);
+    if(amountStr===null) return;
+    const amount = parseFloat(amountStr);
+    if(isNaN(amount) || amount<=0){ toast('Ingresa un monto válido'); return; }
+    const newPaid = Math.min(charge.cost, (charge.paid||0) + amount);
+    try{
+      const saved = await api('/api/charges/'+charge.id, {method:'PUT', body: JSON.stringify({
+        date: charge.date, treatment: charge.treatment, cost: charge.cost, paid: newPaid, notes: charge.notes,
+      })});
+      const idx = state.charges.findIndex(c=>c.id===charge.id);
+      if(idx>=0) state.charges[idx] = saved;
+      renderBillingView();
+      renderDashboard();
+      if(currentPatientId) renderPatientCharges(currentPatientId);
+      toast('Pago registrado');
+      if(confirm('¿Deseas imprimir la nota de abono de este pago?')) printPaymentNote(saved, amount);
+    }catch(err){ toast(err.message); }
+  }
+
+  function chargeCardHtml(c){
+    const p = patientById(c.patientId);
+    return `<div class="charge-card" data-id="${c.id}">
+      <div class="charge-body">
+        <div class="tname">${escapeHtml(c.treatment)}</div>
+        <div class="pname" data-pid="${c.patientId}">${escapeHtml(p?p.name:'Paciente eliminado')}</div>
+        <div class="cdate">${fmtHuman(c.date)}</div>
+      </div>
+      <div class="charge-money">
+        <div class="cost">${money(c.cost)}</div>
+        <div class="balance ${c.balance<=0?'zero':''}">${c.balance<=0?'Saldado':'Debe '+money(c.balance)}</div>
+      </div>
+      <span class="badge ${c.status}">${c.status}</span>
+      <div class="charge-actions">
+        ${c.balance>0 ? `<button class="btn btn-primary btn-sm act-pay">Registrar pago</button>` : ''}
+        <button class="btn btn-ghost btn-sm act-print">Imprimir</button>
+        <button class="btn btn-ghost btn-sm act-edit">Editar</button>
+        <button class="btn btn-danger btn-sm act-del">Eliminar</button>
+      </div>
+    </div>`;
+  }
+  function wireChargeCard(card, c){
+    const pname = $('.pname', card);
+    if(pname) pname.addEventListener('click', ()=> openProfile(c.patientId));
+    const payBtn = $('.act-pay', card);
+    if(payBtn) payBtn.addEventListener('click', ()=> registerPayment(c));
+    $('.act-print', card).addEventListener('click', ()=> printCharge(c));
+    $('.act-edit', card).addEventListener('click', ()=> openChargeModal(c));
+    $('.act-del', card).addEventListener('click', ()=> deleteCharge(c.id));
+  }
+
+  
+  function renderBillingView(){
+    const totalBilled = state.charges.reduce((s,c)=>s+(c.cost||0),0);
+    const totalCollected = state.charges.reduce((s,c)=>s+(c.paid||0),0);
+    $('#stat-billed').textContent = money(totalBilled);
+    $('#stat-collected').textContent = money(totalCollected);
+    $('#stat-pending').textContent = money(totalBilled-totalCollected);
+
+    const items = state.charges.filter(c=>c.balance>0).sort((a,b)=>b.balance-a.balance);
+    const list = $('#charge-list-facturacion');
+    list.innerHTML = items.length ? items.map(chargeCardHtml).join('') :
+      `<div class="empty-state"><div class="icon">💳</div>No hay saldos pendientes. ¡Todo al día!</div>`;
+    items.forEach(c=> wireChargeCard($(`.charge-card[data-id="${c.id}"]`, list), c));
+  }
+
+  /* ---------------- IMPRESIÓN DE COMPROBANTES ---------------- */
+  function printDocument(title, content){
+    const popup = window.open('', '_blank', 'width=760,height=840');
+    if(!popup){
+      toast('El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes e inténtalo de nuevo.');
+      return;
+    }
+    const clinic = escapeHtml((state.settings && state.settings.clinic_name) || 'Clínica Dental');
+    popup.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>
+      <style>
+        *{box-sizing:border-box} body{font-family:Arial,sans-serif;color:#1E2A28;margin:0;padding:28px;background:#fff}
+        .sheet{max-width:680px;margin:auto}.head{border-bottom:3px solid #2F6F62;padding-bottom:14px;margin-bottom:20px}
+        h1{font-size:22px;margin:0 0 5px;color:#2F6F62}.kind{font-size:12px;color:#60716c;text-transform:uppercase;letter-spacing:.08em}
+        .meta{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:18px;font-size:13px}.meta strong{display:block;margin-bottom:3px}
+        table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}th{text-align:left;color:#60716c;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#f3f7f5}
+        th,td{padding:10px;border-bottom:1px solid #dfe5e1}.right{text-align:right}.total{font-size:15px;font-weight:bold}.summary{background:#f3f7f5;border-radius:8px;padding:14px;margin-top:18px}
+        .footer{margin-top:50px;display:flex;justify-content:space-between;gap:30px;font-size:12px;color:#60716c}.sign{border-top:1px solid #9ca8a3;padding-top:6px;min-width:180px;text-align:center}
+        @media print{body{padding:0}.sheet{max-width:none}.no-print{display:none}}
+      </style></head><body><div class="sheet"><div class="head"><h1>${clinic}</h1><div class="kind">${escapeHtml(title)}</div></div>${content}<div class="footer"><span>Documento generado el ${escapeHtml(fmtHuman(fmtDate(new Date())))}</span><span class="sign">Firma / sello de la clínica</span></div></div><script>window.onload=function(){window.focus();window.print();};<\/script></body></html>`);
+    popup.document.close();
+  }
+
+  function printCharge(charge){
+    if(!charge) return;
+    const patient = patientById(charge.patientId);
+    const paid = Number(charge.paid || 0);
+    const balance = Math.max(0, Number(charge.cost || 0) - paid);
+    printDocument('Comprobante de tratamiento', `
+      <div class="meta"><div><strong>Paciente</strong>${escapeHtml(patient ? patient.name : 'Paciente eliminado')}</div><div><strong>Fecha</strong>${escapeHtml(fmtHuman(charge.date))}</div></div>
+      <table><thead><tr><th>Concepto</th><th class="right">Costo</th><th class="right">Pagado</th></tr></thead><tbody>
+        <tr><td>${escapeHtml(charge.treatment)}</td><td class="right">${money(charge.cost)}</td><td class="right">${money(paid)}</td></tr>
+      </tbody></table>
+      <div class="summary"><div class="total">${balance > 0 ? 'Saldo pendiente: ' + money(balance) : 'Cuenta saldada'}</div>${charge.notes ? '<div style="margin-top:8px;font-size:13px">Notas: ' + escapeHtml(charge.notes) + '</div>' : ''}</div>`);
+  }
+
+  function printPatientAccount(patientId){
+    const patient = patientById(patientId);
+    if(!patient) return;
+    const charges = state.charges.filter(c=>c.patientId===patientId).sort((a,b)=>a.date.localeCompare(b.date));
+    const billed = charges.reduce((sum,c)=>sum + Number(c.cost || 0), 0);
+    const paid = charges.reduce((sum,c)=>sum + Number(c.paid || 0), 0);
+    const rows = charges.length ? charges.map(c=>`<tr><td>${escapeHtml(fmtHuman(c.date))}</td><td>${escapeHtml(c.treatment)}</td><td class="right">${money(c.cost)}</td><td class="right">${money(c.paid)}</td></tr>`).join('') : '<tr><td colspan="4">No hay tratamientos registrados.</td></tr>';
+    printDocument('Estado de cuenta', `
+      <div class="meta"><div><strong>Paciente</strong>${escapeHtml(patient.name)}</div><div><strong>Teléfono</strong>${escapeHtml(patient.phone || '—')}</div></div>
+      <table><thead><tr><th>Fecha</th><th>Tratamiento</th><th class="right">Costo</th><th class="right">Pagado</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="summary"><div>Total facturado: <strong>${money(billed)}</strong></div><div>Total pagado: <strong>${money(paid)}</strong></div><div class="total">Saldo pendiente: ${money(billed-paid)}</div></div>`);
+  }
+
+  function printBillingSummary(){
+    const billed = state.charges.reduce((sum,c)=>sum + Number(c.cost || 0), 0);
+    const paid = state.charges.reduce((sum,c)=>sum + Number(c.paid || 0), 0);
+    const rows = state.charges.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(c=>{
+      const patient = patientById(c.patientId);
+      return `<tr><td>${escapeHtml(fmtHuman(c.date))}</td><td>${escapeHtml(patient ? patient.name : 'Paciente eliminado')}</td><td>${escapeHtml(c.treatment)}</td><td class="right">${money(c.cost)}</td><td class="right">${money(c.paid)}</td></tr>`;
+    }).join('') || '<tr><td colspan="5">No hay tratamientos registrados.</td></tr>';
+    printDocument('Resumen de facturación', `
+      <table><thead><tr><th>Fecha</th><th>Paciente</th><th>Tratamiento</th><th class="right">Costo</th><th class="right">Pagado</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="summary"><div>Total facturado: <strong>${money(billed)}</strong></div><div>Total cobrado: <strong>${money(paid)}</strong></div><div class="total">Pendiente por cobrar: ${money(billed-paid)}</div></div>`);
+  }
+
+  function printPaymentNote(charge, amount){
+    if(!charge) return;
+    const patient = patientById(charge.patientId);
+    const paid = Number(charge.paid || 0);
+    const balance = Math.max(0, Number(charge.cost || 0) - paid);
+    printDocument('Nota de abono', `
+      <div class="meta"><div><strong>Paciente</strong>${escapeHtml(patient ? patient.name : 'Paciente eliminado')}</div><div><strong>Fecha</strong>${escapeHtml(fmtHuman(fmtDate(new Date())))}</div></div>
+      <table><thead><tr><th>Tratamiento</th><th class="right">Abono recibido</th></tr></thead><tbody>
+        <tr><td>${escapeHtml(charge.treatment)}</td><td class="right">${money(amount)}</td></tr>
+      </tbody></table>
+      <div class="summary"><div>Pagado acumulado: <strong>${money(paid)}</strong></div><div class="total">Saldo pendiente: ${money(balance)}</div></div>`);
+  }
+
+  function printDiagnosis(){
+    const patient = patientById(currentPatientId);
+    if(!patient) return;
+    const findings = odontoTeeth.filter(t=>t.status !== 'sano');
+    const rows = findings.length ? findings.map(t=>`<tr><td>Diente ${t.tooth}</td><td>${escapeHtml(TOOTH_STATUS_LABEL[t.status] || t.status)}</td><td>${escapeHtml(t.notes || '—')}</td></tr>`).join('') : '<tr><td colspan="3">Sin hallazgos clínicos registrados en el odontograma.</td></tr>';
+    printDocument('Diagnóstico odontológico', `
+      <div class="meta"><div><strong>Paciente</strong>${escapeHtml(patient.name)}</div><div><strong>Fecha</strong>${escapeHtml(fmtHuman(fmtDate(new Date())))}</div></div>
+      <table><thead><tr><th>Diente</th><th>Diagnóstico</th><th>Notas</th></tr></thead><tbody>${rows}</tbody></table>`);
+  }
+
+  function printPrescription(){
+    const patient = patientById(currentPatientId);
+    if(!patient) return;
+    const medications = $('#rx-medications').value.trim();
+    const instructions = $('#rx-instructions').value.trim();
+    if(!medications){ toast('Escribe al menos un medicamento antes de imprimir la receta.'); return; }
+    printDocument('Receta de medicamentos', `
+      <div class="meta"><div><strong>Paciente</strong>${escapeHtml(patient.name)}</div><div><strong>Fecha</strong>${escapeHtml(fmtHuman(fmtDate(new Date())))}</div></div>
+      <div class="summary"><strong>Medicamentos y dosis</strong><div style="white-space:pre-wrap;margin-top:8px">${escapeHtml(medications)}</div></div>
+      <div style="margin-top:16px"><strong>Indicaciones</strong><div style="white-space:pre-wrap;margin-top:8px">${escapeHtml(instructions || '—')}</div></div>`);
+  }
+
+  function printBudget(budget){
+    const patient = patientById(budget.patient_id);
+    const rows = budget.items.map(i=>`<tr><td>${escapeHtml(i.description)}</td><td class="right">${money(i.cost)}</td></tr>`).join('');
+    printDocument('Presupuesto de tratamiento', `
+      <div class="meta"><div><strong>Paciente</strong>${escapeHtml(patient ? patient.name : 'Paciente eliminado')}</div><div><strong>Fecha</strong>${escapeHtml(fmtHuman(budget.created_at.slice(0,10)))}</div></div>
+      <h3 style="margin:0 0 10px">${escapeHtml(budget.title)}</h3>
+      <table><thead><tr><th>Tratamiento</th><th class="right">Costo</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="summary"><div>Estado: <strong>${escapeHtml(budget.status)}</strong></div><div class="total">Total: ${money(budget.total)}</div>${budget.notes ? '<div style="margin-top:8px;font-size:13px">Notas: ' + escapeHtml(budget.notes) + '</div>' : ''}</div>`);
+  }
+  $('#btn-print-billing').addEventListener('click', printBillingSummary);
+  $('#pf-print-account').addEventListener('click', ()=> printPatientAccount(currentPatientId));
+
+  /* ---------------- CONFIGURACIÓN ---------------- */
+  function renderSettingsForm(){
+    const s = state.settings;
+    if(!s) return;
+    $('#cfg-clinic-name').value = s.clinic_name;
+    $('#cfg-doctor-name').value = s.doctor_name || '';
+    $('#cfg-primary-color').value = s.primary_color;
+    $('#cfg-accent-color').value = s.accent_color;
+    $('#cfg-bg-color').value = s.bg_color || '#FAF8F4';
+    $('#cfg-font-size').value = s.font_size || '15';
+    $('#cfg-welcome-message').value = s.welcome_message || '';
+    const fontSel = $('#cfg-font');
+    fontSel.innerHTML = s.fonts.map(f=>`<option value="${f}">${f}</option>`).join('');
+    fontSel.value = s.font_family;
+    updateFontPreview();
+    if(s.logoUrl){
+      $('#cfg-logo-preview').src = s.logoUrl;
+      $('#cfg-logo-preview').style.display = 'block';
+      $('#cfg-logo-empty').style.display = 'none';
+    }else{
+      $('#cfg-logo-preview').style.display = 'none';
+      $('#cfg-logo-empty').style.display = 'flex';
+    }
+    if(state.me && state.me.role === 'admin'){
+      loadUsers();
+      $('#cfg-backup-hour').value = s.backup_hour || '21:00';
+      $('#cfg-backup-enabled').checked = s.backup_enabled !== '0';
+      $('#cfg-backup-folder').value = s.backup_folder || '';
+      loadBackups();
+      loadEmailSettings();
+      loadSyncSettings();
+    }
+  }
+  function updateFontPreview(){
+    const fontStack = {
+      'Space Grotesk': "'Space Grotesk', sans-serif", 'Inter': "'Inter', sans-serif",
+      'Poppins': "'Poppins', sans-serif", 'Merriweather': "'Merriweather', serif",
+      'IBM Plex Mono': "'IBM Plex Mono', monospace",
+    };
+    $('#cfg-font-preview').style.fontFamily = fontStack[$('#cfg-font').value] || fontStack['Space Grotesk'];
+  }
+  $('#cfg-font').addEventListener('change', updateFontPreview);
+
+  $('#cfg-save').addEventListener('click', async ()=>{
+    try{
+      const saved = await api('/api/settings', {method:'POST', body: JSON.stringify({
+        clinic_name: $('#cfg-clinic-name').value.trim(),
+        doctor_name: $('#cfg-doctor-name').value.trim(),
+        primary_color: $('#cfg-primary-color').value,
+        accent_color: $('#cfg-accent-color').value,
+        bg_color: $('#cfg-bg-color').value,
+        font_family: $('#cfg-font').value,
+        font_size: $('#cfg-font-size').value,
+        welcome_message: $('#cfg-welcome-message').value.trim(),
+      })});
+      state.settings = saved;
+      applyTheme(saved);
+      toast('Configuración guardada');
+    }catch(err){ toast(err.message); }
+  });
+  $('#cfg-logo-input').addEventListener('change', async e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const fd = new FormData(); fd.append('logo', file);
+    try{
+      const saved = await api('/api/settings/logo', {method:'POST', body: fd});
+      state.settings = saved;
+      applyTheme(saved);
+      renderSettingsForm();
+      toast('Logo actualizado');
+    }catch(err){ toast(err.message); }
+    e.target.value = '';
+  });
+  $('#cfg-logo-remove').addEventListener('click', async ()=>{
+    try{
+      const saved = await api('/api/settings/logo', {method:'DELETE'});
+      state.settings = saved;
+      applyTheme(saved);
+      renderSettingsForm();
+      toast('Logo eliminado');
+    }catch(err){ toast(err.message); }
+  });
+
+  /* ---------------- AGENDA ---------------- */
+  function renderAgenda(){
+    $('#agenda-date').value = fmtDate(agendaDate);
+    const todayStr = fmtDate(new Date());
+    const dStr = fmtDate(agendaDate);
+    $('#agenda-day-label').textContent = dStr===todayStr ? 'Hoy' : DOW[agendaDate.getDay()] + ', ' + fmtHuman(dStr);
+
+    const items = state.appointments.filter(a=>a.date===dStr).sort((a,b)=>a.time.localeCompare(b.time));
+    const list = $('#appt-list');
+    renderCalendar();
+    if(items.length===0){
+      list.innerHTML = `<div class="empty-state"><div class="icon">📋</div>No hay citas agendadas este día.</div>`;
+      return;
+    }
+    list.innerHTML = items.map(a=>{
+      const p = patientById(a.patientId);
+      return `<div class="appt-card status-${a.status}" data-id="${a.id}">
+        <div class="appt-time">${a.time}</div>
+        <div class="appt-body">
+          <div class="pname" data-pid="${a.patientId}">${escapeHtml(p?p.name:'Paciente eliminado')}</div>
+          <div class="reason">${escapeHtml(a.reason||'Sin motivo especificado')} · ${a.duration} min</div>
+        </div>
+        <span class="badge ${a.status}">${a.status}</span>
+        <div class="appt-actions">
+          <button class="btn btn-ghost btn-sm act-edit">Editar</button>
+          <button class="btn btn-danger btn-sm act-del">Eliminar</button>
+        </div>
+      </div>`;
+    }).join('');
+    $$('.pname', list).forEach(el=>el.addEventListener('click', ()=>openProfile(el.dataset.pid)));
+    $$('.appt-card', list).forEach(card=>{
+      const a = state.appointments.find(x=>x.id===card.dataset.id);
+      $('.act-edit', card).addEventListener('click', ()=>openApptModal(a));
+      $('.act-del', card).addEventListener('click', async ()=>{
+        if(confirm('¿Eliminar esta cita?')){
+          try{
+            await api('/api/appointments/'+a.id, {method:'DELETE'});
+            state.appointments = state.appointments.filter(x=>x.id!==a.id);
+            renderAgenda(); renderCalendar();
+          }catch(err){
+            toast(err.message);
+          }
+        }
+      });
+    });
+  }
+  $('#agenda-date').addEventListener('change', e=>{ agendaDate = parseDate(e.target.value); renderAgenda(); });
+  $('#agenda-prev').addEventListener('click', ()=>{ agendaDate.setDate(agendaDate.getDate()-1); renderAgenda(); });
+  $('#agenda-next').addEventListener('click', ()=>{ agendaDate.setDate(agendaDate.getDate()+1); renderAgenda(); });
+
+  /* ---------------- CALENDARIO ---------------- */
+  function renderCalendar(){
+    $('#cal-month-label').textContent = `${MONTHS[calMonth.getMonth()]} ${calMonth.getFullYear()}`;
+    const grid = $('#cal-grid');
+    grid.innerHTML = DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+
+    const firstDay = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+    const startOffset = firstDay.getDay();
+    const gridStart = new Date(firstDay); gridStart.setDate(gridStart.getDate()-startOffset);
+    const todayStr = fmtDate(new Date());
+
+    const countsByDate = {};
+    state.appointments.forEach(a=>{ if(a.status!=='cancelada'){ countsByDate[a.date] = (countsByDate[a.date]||0)+1; } });
+
+    for(let i=0;i<42;i++){
+      const d = new Date(gridStart); d.setDate(gridStart.getDate()+i);
+      const dStr = fmtDate(d);
+      const isOther = d.getMonth()!==calMonth.getMonth();
+      const count = countsByDate[dStr] || 0;
+      const cell = document.createElement('div');
+      cell.className = 'cal-day' + (isOther?' other-month':'') + (dStr===todayStr?' is-today':'');
+      cell.dataset.date = dStr;
+      cell.innerHTML = `<div class="dnum">${d.getDate()}</div>` +
+        (count>0 ? `<div class="dots">${Array.from({length:Math.min(count,4)}).map(()=>'<span class="dot"></span>').join('')}</div><div class="count">${count>4?count+'+':''}</div>` : '');
+      cell.addEventListener('click', ()=>{
+        agendaDate = parseDate(dStr);
+        renderAgenda();
+        document.querySelector('#appt-list').scrollIntoView({behavior:'smooth', block:'start'});
+      });
+      grid.appendChild(cell);
+    }
+  }
+  $('#cal-prev').addEventListener('click', ()=>{ calMonth.setMonth(calMonth.getMonth()-1); renderCalendar(); });
+  $('#cal-next').addEventListener('click', ()=>{ calMonth.setMonth(calMonth.getMonth()+1); renderCalendar(); });
+
+  /* ---------------- MODALES: helpers ---------------- */
+  function openOverlay(sel){ $(sel).classList.add('open'); }
+  function closeOverlays(){ $$('.overlay').forEach(o=>o.classList.remove('open')); }
+  $$('[data-close]').forEach(el=>el.addEventListener('click', closeOverlays));
+  $$('.overlay').forEach(o=>o.addEventListener('click', e=>{ if(e.target===o) closeOverlays(); }));
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeOverlays(); });
+
+  function renderAll(){
+    renderPatients();
+    renderAgenda();
+    renderCalendar();
+    renderDashboard();
+  }
+
+  /* ---------------- RENDER: DASHBOARD ---------------- */
+  function renderDashboard(){
+    const todayStr = fmtDate(new Date());
+    $('#kpi-total-patients').textContent = state.patients.length;
+    const todayAppts = state.appointments.filter(a=>a.date===todayStr && a.status!=='cancelada');
+    $('#kpi-today-appts').textContent = todayAppts.length;
+    const todayIncome = state.charges.reduce((sum,c)=>{
+      return sum + (c.updated_at && c.updated_at.startsWith(todayStr) ? Number(c.paid||0) : 0);
+    }, 0);
+    lastTodayIncome = todayIncome;
+    if(incomeVisible) $('#kpi-today-income').textContent = money(todayIncome);
+    else $('#kpi-today-income').textContent = '••••';
+
+    const todayList = $('#dash-today-list');
+    if(todayAppts.length===0){
+      todayList.innerHTML = '<p class="sub">No hay citas para hoy.</p>';
+    }else{
+      todayList.innerHTML = todayAppts.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{
+        const p = patientById(a.patientId);
+        return `<div class="dash-row"><span>${a.time} · ${escapeHtml(p? p.name : 'Paciente')}</span>
+          <span class="badge ${a.status==='confirmada'?'badge-success':a.status==='pendiente'?'badge-warning':'badge-danger'}">${a.status}</span></div>`;
+      }).join('');
+    }
+
+    const balanceList = $('#dash-balance-list');
+    const balances = {};
+    state.charges.forEach(c=>{
+      if(c.balance > 0.009){ balances[c.patientId] = (balances[c.patientId] || 0) + c.balance; }
+    });
+    const entries = Object.entries(balances);
+    if(entries.length===0){
+      balanceList.innerHTML = '<p class="sub">Ningún paciente tiene saldo pendiente.</p>';
+    }else{
+      balanceList.innerHTML = entries.map(([pid, amt])=>{
+        const p = patientById(pid);
+        return `<div class="dash-row"><span>${escapeHtml(p? p.name : 'Paciente')}</span>
+          <span class="badge badge-warning">${money(amt)}</span></div>`;
+      }).join('');
+    }
+  }
+
+  $('#btn-change-pw').addEventListener('click', e=>{
+    e.preventDefault();
+    $('#pw-form').reset();
+    openOverlay('#modal-pw');
+  });
+  $('#pw-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    try{
+      await api('/api/change-password', {method:'POST', body: JSON.stringify({
+        current: $('#pw-current').value,
+        new: $('#pw-new').value,
+      })});
+      closeOverlays();
+      toast('Contraseña actualizada');
+    }catch(err){
+      toast(err.message);
+    }
+  });
+
+  /* ---------------- ODONTOGRAMA ---------------- */
+  const TOOTH_STATUS_LABEL = {
+    sano:'Sano', caries:'Caries', obturado:'Obturado', corona:'Corona',
+    endodoncia:'Endodoncia', implante:'Implante', ausente:'Ausente', extraccion:'Extracción indicada'
+  };
+  const TOP_TEETH = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
+  const BOTTOM_TEETH = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+
+  async function loadOdontogram(pid){
+    odontoPatientId = pid;
+    if(!pid) return;
+    try{
+      odontoTeeth = await api(`/api/patients/${pid}/odontogram`);
+    }catch(err){ toast(err.message); odontoTeeth = []; }
+    try{
+      currentPrescription = await api(`/api/patients/${pid}/prescription`);
+    }catch(err){ currentPrescription = {medications:'', instructions:'', updated_at:''}; }
+    $('#rx-medications').value = currentPrescription.medications || '';
+    $('#rx-instructions').value = currentPrescription.instructions || '';
+    drawToothArch('#tooth-arch-top', TOP_TEETH);
+    drawToothArch('#tooth-arch-bottom', BOTTOM_TEETH);
+  }
+
+  const TOOTH_SVG_PATH = "M12 2C8.5 2 6 4 4.5 4C3.3 4 2.5 5 2.5 6.5C2.5 9 3.5 10 3.8 12.5C4.1 15 4.5 22 6.5 22C8 22 8 17 9 15C9.5 14 10.2 13.5 12 13.5C13.8 13.5 14.5 14 15 15C16 17 16 22 17.5 22C19.5 22 19.9 15 20.2 12.5C20.5 10 21.5 9 21.5 6.5C21.5 5 20.7 4 19.5 4C18 4 15.5 2 12 2Z";
+
+  function drawToothArch(sel, numbers){
+    const wrap = $(sel);
+    wrap.innerHTML = numbers.map(n=>{
+      const rec = odontoTeeth.find(t=>t.tooth===n);
+      const status = rec ? rec.status : 'sano';
+      return `<button type="button" class="tooth-svg status-${status}" data-n="${n}" title="${TOOTH_STATUS_LABEL[status]}">
+        <svg viewBox="0 0 24 24"><path d="${TOOTH_SVG_PATH}"/></svg>
+        <span class="tn">${n}</span>
+      </button>`;
+    }).join('');
+    $$('.tooth-svg', wrap).forEach(el=>{
+      el.addEventListener('click', ()=> openToothModal(Number(el.dataset.n)));
+    });
+  }
+
+  function openToothModal(n){
+    currentToothNum = n;
+    const rec = odontoTeeth.find(t=>t.tooth===n);
+    $('#tooth-modal-num').textContent = n;
+    $('#tooth-status').value = rec ? rec.status : 'sano';
+    $('#tooth-notes').value = rec ? (rec.notes||'') : '';
+    openOverlay('#modal-tooth');
+  }
+
+  $('#tooth-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    if(!odontoPatientId || !currentToothNum) return;
+    try{
+      odontoTeeth = await api(`/api/patients/${odontoPatientId}/odontogram`, {method:'POST', body: JSON.stringify({
+        tooth: currentToothNum, status: $('#tooth-status').value, notes: $('#tooth-notes').value,
+      })});
+      drawToothArch('#tooth-arch-top', TOP_TEETH);
+      drawToothArch('#tooth-arch-bottom', BOTTOM_TEETH);
+      $('#modal-tooth').classList.remove('open');
+      toast('Diente actualizado');
+    }catch(err){ toast(err.message); }
+  });
+
+  async function savePrescription(){
+    if(!odontoPatientId) return;
+    try{
+      currentPrescription = await api(`/api/patients/${odontoPatientId}/prescription`, {method:'POST', body: JSON.stringify({
+        medications: $('#rx-medications').value.trim(),
+        instructions: $('#rx-instructions').value.trim(),
+      })});
+      toast('Receta guardada');
+    }catch(err){ toast(err.message); }
+  }
+  $('#rx-save').addEventListener('click', savePrescription);
+  $('#rx-print').addEventListener('click', ()=> printPrescription());
+  $('#pf-print-diagnosis').addEventListener('click', ()=> printDiagnosis());
+
+  /* ---------------- PRESUPUESTOS ---------------- */
+  function renderProfileBudgets(){
+    const list = $('#pf-budget-list');
+    const items = state.budgets
+      .filter(b=>b.patient_id===currentPatientId)
+      .slice()
+      .sort((a,b)=>b.created_at.localeCompare(a.created_at));
+    list.innerHTML = items.length ? items.map(budgetCardHtml).join('') :
+      `<div class="empty-state"><div class="icon">📑</div>Este paciente no tiene presupuestos todavía.</div>`;
+    items.forEach(b=> wireBudgetCard($(`.budget-card[data-id="${b.id}"]`, list), b));
+  }
+
+  function budgetCardHtml(b){
+    const badgeClass = b.status==='aprobado' ? 'badge-success' : b.status==='rechazado' ? 'badge-danger' : 'badge-warning';
+    return `<div class="budget-card" data-id="${b.id}">
+      <div class="bhead">
+        <strong>${escapeHtml(b.title)}</strong>
+        <span class="badge ${badgeClass}">${b.status}</span>
+      </div>
+      <div class="bpatient">${fmtHuman(b.created_at.slice(0,10))}</div>
+      <div class="budget-items">${b.items.map(i=>`<div><span>${escapeHtml(i.description)}</span><span>${money(i.cost)}</span></div>`).join('')}</div>
+      <div class="budget-total">Total: ${money(b.total)}</div>
+      <div class="budget-actions">
+        ${b.status!=='aprobado' ? '<button class="btn btn-ghost btn-sm act-approve">Aprobar</button>' : ''}
+        ${b.status!=='rechazado' ? '<button class="btn btn-ghost btn-sm act-reject">Rechazar</button>' : ''}
+        <button class="btn btn-ghost btn-sm act-print">Imprimir</button>
+        <button class="btn btn-ghost btn-sm act-edit">Editar</button>
+        <button class="btn btn-danger btn-sm act-del">Eliminar</button>
+      </div>
+    </div>`;
+  }
+
+  function wireBudgetCard(card, b){
+    if(!card) return;
+    const approveBtn = $('.act-approve', card);
+    const rejectBtn = $('.act-reject', card);
+    if(approveBtn) approveBtn.addEventListener('click', ()=> setBudgetStatus(b, 'aprobado'));
+    if(rejectBtn) rejectBtn.addEventListener('click', ()=> setBudgetStatus(b, 'rechazado'));
+    $('.act-print', card).addEventListener('click', ()=> printBudget(b));
+    $('.act-edit', card).addEventListener('click', ()=> openBudgetModal(b));
+    $('.act-del', card).addEventListener('click', ()=> deleteBudget(b.id));
+  }
+
+  async function setBudgetStatus(b, status){
+    try{
+      const saved = await api('/api/budgets/'+b.id, {method:'PUT', body: JSON.stringify({status})});
+      const idx = state.budgets.findIndex(x=>x.id===b.id);
+      if(idx>=0) state.budgets[idx] = saved;
+      renderProfileBudgets();
+      toast('Presupuesto actualizado');
+    }catch(err){ toast(err.message); }
+  }
+
+  async function deleteBudget(id){
+    if(!confirm('¿Eliminar este presupuesto?')) return;
+    try{
+      await api('/api/budgets/'+id, {method:'DELETE'});
+      state.budgets = state.budgets.filter(b=>b.id!==id);
+      renderProfileBudgets();
+      toast('Presupuesto eliminado');
+    }catch(err){ toast(err.message); }
+  }
+
+  function addBudgetItemRow(desc='', cost=''){
+    budgetItemCounter++;
+    const id = 'bi-'+budgetItemCounter;
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.dataset.rowId = id;
+    row.innerHTML = `<input type="text" placeholder="Descripción" class="bi-desc" value="${escapeHtml(desc)}">
+      <input type="number" step="0.01" min="0" placeholder="Costo" class="bi-cost" value="${cost}">
+      <button type="button" class="btn btn-ghost btn-sm bi-remove">✕</button>`;
+    $('.bi-remove', row).addEventListener('click', ()=> row.remove());
+    $('#budget-items-wrap').appendChild(row);
+  }
+
+  $('#btn-add-item').addEventListener('click', ()=> addBudgetItemRow());
+
+  function openBudgetModal(budget=null){
+    $('#budget-form').reset();
+    $('#budget-items-wrap').innerHTML = '';
+    $('#budget-form').dataset.editId = budget ? budget.id : '';
+    $('#budget-modal-title').textContent = budget ? 'Editar presupuesto' : 'Nuevo presupuesto';
+    fillPatientSelect(budget ? budget.patient_id : currentPatientId, $('#budget-patient'));
+    $('#budget-patient').disabled = true;
+    if(budget){
+      $('#budget-title').value = budget.title;
+      $('#budget-notes').value = budget.notes || '';
+      budget.items.forEach(i=> addBudgetItemRow(i.description, i.cost));
+    }else{
+      addBudgetItemRow();
+    }
+    openOverlay('#modal-budget');
+  }
+
+  $('#pf-new-budget').addEventListener('click', ()=> openBudgetModal());
+
+  $('#budget-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const items = $$('.item-row', $('#budget-items-wrap')).map(row=>({
+      description: $('.bi-desc', row).value.trim(),
+      cost: parseFloat($('.bi-cost', row).value) || 0,
+    })).filter(i=>i.description);
+    if(items.length===0){ toast('Agrega al menos un ítem con descripción'); return; }
+    const payload = {
+      patient_id: $('#budget-patient').value || currentPatientId,
+      title: $('#budget-title').value.trim(),
+      notes: $('#budget-notes').value.trim(),
+      items,
+    };
+    const editId = $('#budget-form').dataset.editId;
+    try{
+      let saved;
+      if(editId){
+        saved = await api('/api/budgets/'+editId, {method:'PUT', body: JSON.stringify(payload)});
+        const idx = state.budgets.findIndex(b=>b.id===editId);
+        if(idx>=0) state.budgets[idx] = saved;
+      }else{
+        saved = await api('/api/budgets', {method:'POST', body: JSON.stringify(payload)});
+        state.budgets.unshift(saved);
+      }
+      $('#modal-budget').classList.remove('open');
+      renderProfileBudgets();
+      toast('Presupuesto guardado');
+    }catch(err){ toast(err.message); }
+  });
+
+  $('#kpi-income-toggle').addEventListener('click', ()=>{
+    incomeVisible = !incomeVisible;
+    $('#kpi-today-income').textContent = incomeVisible ? money(lastTodayIncome) : '••••';
+    $('#kpi-income-toggle').textContent = incomeVisible ? '🙈' : '👁️';
+    $('#kpi-income-toggle').title = incomeVisible ? 'Ocultar monto' : 'Mostrar monto';
+  });
+
+  /* ---------------- USUARIOS (solo admin) ---------------- */
+  async function loadUsers(){
+    try{
+      state.users = await api('/api/users');
+      renderUsers();
+    }catch(err){ toast(err.message); }
+  }
+
+  function renderUsers(){
+    const wrap = $('#users-list');
+    if(!state.users.length){ wrap.innerHTML = '<p class="sub">No hay otros usuarios todavía.</p>'; return; }
+    wrap.innerHTML = state.users.map(u=>{
+      const roleLabel = u.role === 'admin' ? 'Administrador' : 'Secretaria / personal';
+      const permsLabel = u.role === 'admin' ? 'Acceso completo' : (u.permissions.map(p=>VIEW_LABELS[p]||p).join(', ') || 'Sin secciones asignadas');
+      const isMe = state.me && state.me.id === u.id;
+      return `<div class="user-row" data-id="${u.id}">
+        <div>
+          <div class="uname">${escapeHtml(u.displayName || u.username)} ${isMe?'<span class="badge badge-muted">Tú</span>':''}</div>
+          <div class="umeta">@${escapeHtml(u.username)} · ${roleLabel} · ${escapeHtml(permsLabel)}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm act-edit-user">Editar</button>
+          ${isMe ? '' : '<button class="btn btn-danger btn-sm act-del-user">Eliminar</button>'}
+        </div>
+      </div>`;
+    }).join('');
+    state.users.forEach(u=>{
+      const row = $(`.user-row[data-id="${u.id}"]`, wrap);
+      if(!row) return;
+      $('.act-edit-user', row).addEventListener('click', ()=> openUserModal(u));
+      const delBtn = $('.act-del-user', row);
+      if(delBtn) delBtn.addEventListener('click', ()=> deleteUser(u));
+    });
+  }
+
+  function buildPermsGrid(selected){
+    const sel = selected || [];
+    $('#u-perms-grid').innerHTML = VIEW_KEYS.map(k=>`
+      <label><input type="checkbox" class="u-perm" value="${k}" ${sel.includes(k)?'checked':''}> ${VIEW_LABELS[k]||k}</label>
+    `).join('');
+  }
+
+  function openUserModal(user=null){
+    $('#user-form').reset();
+    $('#user-form').dataset.editId = user ? user.id : '';
+    $('#user-modal-title').textContent = user ? 'Editar usuario' : 'Nuevo usuario';
+    $('#u-password-label').textContent = user ? 'Nueva contraseña (dejar en blanco para no cambiarla)' : 'Contraseña (mín. 8 caracteres)';
+    $('#u-password').required = !user;
+    $('#u-display-name').value = user ? user.displayName : '';
+    $('#u-username').value = user ? user.username : '';
+    $('#u-username').disabled = !!user;
+    $('#u-role').value = user ? user.role : 'secretaria';
+    buildPermsGrid(user ? user.permissions : ['agenda']);
+    toggleUserPermsVisibility();
+    openOverlay('#modal-user');
+  }
+  function toggleUserPermsVisibility(){
+    $('#u-perms-wrap').style.display = $('#u-role').value === 'admin' ? 'none' : 'block';
+  }
+  $('#u-role').addEventListener('change', toggleUserPermsVisibility);
+  $('#btn-new-user').addEventListener('click', ()=> openUserModal());
+
+  async function deleteUser(u){
+    if(!confirm(`¿Eliminar el usuario "${u.username}"?`)) return;
+    try{
+      await api('/api/users/'+u.id, {method:'DELETE'});
+      state.users = state.users.filter(x=>x.id!==u.id);
+      renderUsers();
+      toast('Usuario eliminado');
+    }catch(err){ toast(err.message); }
+  }
+
+  $('#user-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const editId = $('#user-form').dataset.editId;
+    const permissions = $$('.u-perm:checked').map(c=>c.value);
+    const payload = {
+      displayName: $('#u-display-name').value.trim(),
+      role: $('#u-role').value,
+      permissions,
+    };
+    const pw = $('#u-password').value;
+    if(pw) payload.password = pw;
+    if(!editId) payload.username = $('#u-username').value.trim();
+    try{
+      let saved;
+      if(editId){
+        saved = await api('/api/users/'+editId, {method:'PUT', body: JSON.stringify(payload)});
+        const idx = state.users.findIndex(u=>u.id===editId);
+        if(idx>=0) state.users[idx] = saved;
+      }else{
+        saved = await api('/api/users', {method:'POST', body: JSON.stringify(payload)});
+        state.users.push(saved);
+      }
+      closeOverlays();
+      renderUsers();
+      toast('Usuario guardado');
+    }catch(err){ toast(err.message); }
+  });
+
+  /* ---------------- RESPALDOS (solo admin) ---------------- */
+  async function loadBackups(){
+    try{
+      const backups = await api('/api/backups');
+      renderBackups(backups);
+    }catch(err){ toast(err.message); }
+  }
+
+  function renderBackups(backups){
+    const wrap = $('#backup-list');
+    if(!backups.length){ wrap.innerHTML = '<p class="sub">Todavía no hay respaldos. Se creará uno automáticamente, o puedes generarlo ahora.</p>'; return; }
+    wrap.innerHTML = backups.map(b=>`
+      <div class="backup-row" data-file="${b.filename}">
+        <div>
+          <div class="bname">${b.createdAt}${b.hasUploads ? ' · incluye fotos/documentos' : ''}</div>
+          <div class="bmeta">${b.sizeKb} KB</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm act-download-backup">Descargar</button>
+          <button class="btn btn-ghost btn-sm act-restore-backup">Restaurar</button>
+          <button class="btn btn-danger btn-sm act-del-backup">Eliminar</button>
+        </div>
+      </div>`).join('');
+    backups.forEach(b=>{
+      const row = $(`.backup-row[data-file="${b.filename}"]`, wrap);
+      $('.act-download-backup', row).addEventListener('click', ()=>{
+        window.open(`/api/backups/${encodeURIComponent(b.filename)}/download`, '_blank');
+      });
+      $('.act-restore-backup', row).addEventListener('click', ()=> restoreBackup(b));
+      $('.act-del-backup', row).addEventListener('click', async ()=>{
+        if(!confirm('¿Eliminar este respaldo?')) return;
+        try{
+          await api('/api/backups/'+encodeURIComponent(b.filename), {method:'DELETE'});
+          loadBackups();
+          toast('Respaldo eliminado');
+        }catch(err){ toast(err.message); }
+      });
+    });
+  }
+
+  async function restoreBackup(b){
+    const sure = confirm(
+      `Vas a RESTAURAR el respaldo del ${b.createdAt}.\n\n` +
+      `Esto reemplazará TODA la información actual (pacientes, citas, tratamientos, etc.) ` +
+      `con la que había en ese momento. Se hará una copia de seguridad del estado actual antes, ` +
+      `pero cualquier cambio hecho después de ese respaldo se perderá.\n\n¿Continuar?`
+    );
+    if(!sure) return;
+    let withUploads = false;
+    if(b.hasUploads){
+      withUploads = confirm('¿Restaurar también las fotos y documentos guardados en ese respaldo?');
+    }
+    try{
+      const res = await api(`/api/backups/${encodeURIComponent(b.filename)}/restore`, {
+        method: 'POST', body: JSON.stringify({restoreUploads: withUploads}),
+      });
+      alert(res.message || 'Respaldo restaurado. Vuelve a iniciar sesión.');
+      window.location.href = '/login';
+    }catch(err){ toast(err.message); }
+  }
+
+  $('#btn-backup-now').addEventListener('click', async ()=>{
+    try{
+      const backups = await api('/api/backups', {method:'POST'});
+      renderBackups(backups);
+      toast('Respaldo creado');
+    }catch(err){ toast(err.message); }
+  });
+
+  $('#cfg-backup-save').addEventListener('click', async ()=>{
+    try{
+      const saved = await api('/api/settings', {method:'POST', body: JSON.stringify({
+        backup_hour: $('#cfg-backup-hour').value || '21:00',
+        backup_enabled: $('#cfg-backup-enabled').checked,
+        backup_folder: $('#cfg-backup-folder').value.trim(),
+      })});
+      state.settings = saved;
+      toast('Configuración de respaldo guardada');
+    }catch(err){ toast(err.message); }
+  });
+
+  $('#btn-copy-folder-now').addEventListener('click', async ()=>{
+    try{
+      await api('/api/backups/sync-folder', {method:'POST'});
+      toast('Copiado a la carpeta sincronizada');
+    }catch(err){ toast(err.message); }
+  });
+
+  /* ---------------- CORREO (solo admin) ---------------- */
+  async function loadEmailSettings(){
+    try{
+      const s = await api('/api/settings/email');
+      $('#cfg-smtp-host').value = s.smtp_host || '';
+      $('#cfg-smtp-port').value = s.smtp_port || '587';
+      $('#cfg-smtp-user').value = s.smtp_user || '';
+      $('#cfg-smtp-from-name').value = s.smtp_from_name || '';
+      $('#cfg-smtp-tls').checked = !!s.smtp_use_tls;
+      $('#cfg-smtp-password').value = '';
+      $('#cfg-smtp-password').placeholder = s.hasPassword ? '•••••••• (ya configurada, escribe para cambiarla)' : '';
+      $('#cfg-smtp-pw-label').textContent = s.hasPassword ? 'Nueva contraseña (dejar en blanco para no cambiarla)' : 'Contraseña de aplicación';
+    }catch(err){ toast(err.message); }
+  }
+
+  $('#cfg-email-save').addEventListener('click', async ()=>{
+    const payload = {
+      smtp_host: $('#cfg-smtp-host').value.trim(),
+      smtp_port: $('#cfg-smtp-port').value.trim(),
+      smtp_user: $('#cfg-smtp-user').value.trim(),
+      smtp_from_name: $('#cfg-smtp-from-name').value.trim(),
+      smtp_use_tls: $('#cfg-smtp-tls').checked,
+    };
+    const pw = $('#cfg-smtp-password').value;
+    if(pw) payload.smtp_password = pw;
+    try{
+      await api('/api/settings/email', {method:'POST', body: JSON.stringify(payload)});
+      toast('Configuración de correo guardada');
+      loadEmailSettings();
+    }catch(err){ toast(err.message); }
+  });
+
+  /* ---------------- SINCRONIZACIÓN CON VERSIÓN EN LÍNEA (solo admin) ---------------- */
+  async function loadSyncSettings(){
+    try{
+      const s = await api('/api/settings/sync');
+      $('#cfg-sync-url').value = s.sync_remote_url || '';
+      $('#cfg-sync-user').value = s.sync_remote_username || '';
+      $('#cfg-sync-password').value = '';
+      $('#cfg-sync-password').placeholder = s.hasPassword ? '•••••••• (ya configurada, escribe para cambiarla)' : '';
+      $('#cfg-sync-pw-label').textContent = s.hasPassword ? 'Nueva contraseña (dejar en blanco para no cambiarla)' : 'Contraseña';
+    }catch(err){ toast(err.message); }
+  }
+
+  $('#cfg-sync-save').addEventListener('click', async ()=>{
+    const payload = {
+      sync_remote_url: $('#cfg-sync-url').value.trim(),
+      sync_remote_username: $('#cfg-sync-user').value.trim(),
+    };
+    const pw = $('#cfg-sync-password').value;
+    if(pw) payload.sync_remote_password = pw;
+    try{
+      await api('/api/settings/sync', {method:'POST', body: JSON.stringify(payload)});
+      toast('Datos de conexión guardados');
+      loadSyncSettings();
+    }catch(err){ toast(err.message); }
+  });
+
+  $('#btn-sync-push').addEventListener('click', async ()=>{
+    if(!confirm('Esto va a reemplazar los datos de tu versión en línea con los de esta PC. ¿Continuar?')) return;
+    const btn = $('#btn-sync-push');
+    const statusEl = $('#sync-status');
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    statusEl.textContent = 'Generando respaldo y enviándolo, esto puede tardar un momento…';
+    try{
+      const res = await api('/api/sync/push', {method:'POST'});
+      statusEl.textContent = '✅ ' + (res.message || 'Actualizado correctamente.');
+      toast('Versión en línea actualizada');
+    }catch(err){
+      statusEl.textContent = '❌ ' + err.message;
+      toast(err.message);
+    }
+    btn.disabled = false; btn.textContent = '⬆ Subir a mi versión en línea';
+  });
+
+  loadData();
+})();
+</script>
+</body>
+</html>
