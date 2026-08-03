@@ -1,0 +1,23 @@
+# Ignorar entorno virtual
+venv/
+
+# Ignorar cachés y compilados de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignorar base de datos local
+*.db
+
+# Ignorar configuraciones y carpetas del sistema
+.cache/
+.codex/
+.config/
+.local/
+AppData/
+OneDrive/
+Documents/
+Downloads/
+Music/
+Pictures/
+Videos/
