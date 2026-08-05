@@ -1,12 +1,15 @@
 """
-Clínica Dental — servidor local con base de datos real (SQLite) y login.
+Clínica Dental — servidor con base de datos SQLite (local) o PostgreSQL
+(automático si existe la variable de entorno DATABASE_URL, por ejemplo en
+Render) y login.
 
-Cómo correr:
+Cómo correr localmente:
     pip install -r requirements.txt
     python app.py
 
 Luego abre http://localhost:5000 en tu navegador.
-La primera vez te pedirá crear el usuario administrador.
+La primera vez te pedirá un código de activación y crear el usuario
+administrador.
 """
 
 import hashlib
@@ -43,15 +46,39 @@ for d in (UPLOAD_DIR, PHOTOS_DIR, DOCS_DIR, BRANDING_DIR, BACKUP_DIR):
     os.makedirs(d, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Llave secreta persistente (se genera una sola vez, no se debe compartir)
+# Base de datos: SQLite en local, PostgreSQL automáticamente si existe
+# DATABASE_URL (por ejemplo, en Render). El resto del código no necesita
+# saber cuál de las dos está usando — ver la clase CompatConnection abajo.
 # ---------------------------------------------------------------------------
-if os.path.exists(SECRET_KEY_PATH):
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+USE_POSTGRES = bool(DATABASE_URL)
+
+if USE_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+    # Render (y algunos otros) entregan la URL como "postgres://", pero
+    # psycopg2 moderno exige el prefijo "postgresql://".
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# ---------------------------------------------------------------------------
+# Llave secreta persistente (se genera una sola vez, no se debe compartir).
+# En Render, si defines la variable de entorno SECRET_KEY, se usa esa (así
+# no cambia en cada reinicio del servidor, lo que invalidaría las sesiones).
+# ---------------------------------------------------------------------------
+_env_secret = os.environ.get("SECRET_KEY", "").strip()
+if _env_secret:
+    SECRET_KEY = _env_secret
+elif os.path.exists(SECRET_KEY_PATH):
     with open(SECRET_KEY_PATH, "r") as f:
         SECRET_KEY = f.read().strip()
 else:
     SECRET_KEY = uuid.uuid4().hex + uuid.uuid4().hex
-    with open(SECRET_KEY_PATH, "w") as f:
-        f.write(SECRET_KEY)
+    try:
+        with open(SECRET_KEY_PATH, "w") as f:
+            f.write(SECRET_KEY)
+    except OSError:
+        pass  # sistema de archivos de solo lectura o efímero — no es crítico
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = SECRET_KEY
@@ -71,14 +98,69 @@ def _ext_ok(filename, allowed):
 
 
 # ---------------------------------------------------------------------------
-# Base de datos
+# Capa de compatibilidad SQLite / PostgreSQL
+# ---------------------------------------------------------------------------
+
+def _raw_connection():
+    if USE_POSTGRES:
+        return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+class CompatConnection:
+    """Envuelve la conexión real (SQLite o PostgreSQL) para que el resto del
+    código pueda seguir escribiendo db.execute("... ? ...", (valor,)) y
+    leyendo row["columna"] sin importar cuál motor esté activo."""
+
+    def __init__(self, raw):
+        self.raw = raw
+
+    def execute(self, sql, params=()):
+        cur = self.raw.cursor()
+        if USE_POSTGRES:
+            sql = sql.replace("?", "%s")
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self):
+        self.raw.commit()
+
+    def close(self):
+        self.raw.close()
+
+
+def _insert_ignore(table, columns):
+    """Genera un INSERT que no falla si la fila ya existe (para los valores
+    por defecto de settings). columns[0] debe ser la clave primaria."""
+    cols_sql = ", ".join(columns)
+    placeholders = ", ".join(["?"] * len(columns))
+    if USE_POSTGRES:
+        return f"INSERT INTO {table} ({cols_sql}) VALUES ({placeholders}) ON CONFLICT ({columns[0]}) DO NOTHING"
+    return f"INSERT OR IGNORE INTO {table} ({cols_sql}) VALUES ({placeholders})"
+
+
+def _column_exists(db, table, column):
+    if USE_POSTGRES:
+        row = db.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+            (table, column),
+        ).fetchone()
+        return row is not None
+    cols = [r[1] for r in db.execute(f"PRAGMA table_info({table})").fetchall()]
+    return column in cols
+
+
+# ---------------------------------------------------------------------------
+# Base de datos: conexión por petición
 # ---------------------------------------------------------------------------
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
+        g.db = CompatConnection(_raw_connection())
+        if not USE_POSTGRES:
+            g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 
 
@@ -126,8 +208,6 @@ DEFAULT_SETTINGS = {
     "backup_folder": "",
 }
 
-# Claves de configuración de correo: nunca se exponen por /api/settings (endpoint general),
-# solo por /api/settings/email, que es admin-only y no revela la contraseña guardada.
 EMAIL_SETTINGS = {
     "smtp_host": "",
     "smtp_port": "587",
@@ -137,8 +217,6 @@ EMAIL_SETTINGS = {
     "smtp_from_name": "",
 }
 
-# Claves de sincronización con una versión en línea (PythonAnywhere, etc.): tampoco
-# se exponen por /api/settings, solo por /api/settings/sync (admin-only, sin revelar contraseña).
 SYNC_SETTINGS = {
     "sync_remote_url": "",
     "sync_remote_username": "",
@@ -148,9 +226,9 @@ SYNC_SETTINGS = {
 VIEW_KEYS = ["pacientes", "agenda", "calendario", "tratamientos", "odontograma", "presupuestos", "facturacion"]
 
 
-
 def init_db():
-    db = sqlite3.connect(DB_PATH)
+    raw = _raw_connection()
+    db = CompatConnection(raw)
     db.execute(
         """CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
@@ -258,53 +336,46 @@ def init_db():
             cost REAL NOT NULL DEFAULT 0
         )"""
     )
-    # Migración suave: si la tabla patients ya existía sin la columna photo, agrégala.
-    cols = [r[1] for r in db.execute("PRAGMA table_info(patients)").fetchall()]
-    if "photo" not in cols:
+    if not _column_exists(db, "patients", "photo"):
         db.execute("ALTER TABLE patients ADD COLUMN photo TEXT")
-    if "dui" not in cols:
+    if not _column_exists(db, "patients", "dui"):
         db.execute("ALTER TABLE patients ADD COLUMN dui TEXT")
-    ucols = [r[1] for r in db.execute("PRAGMA table_info(users)").fetchall()]
-    if "role" not in ucols:
+    if not _column_exists(db, "users", "role"):
         db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'")
-    if "permissions" not in ucols:
+    if not _column_exists(db, "users", "permissions"):
         db.execute("ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT ''")
-    if "display_name" not in ucols:
+    if not _column_exists(db, "users", "display_name"):
         db.execute("ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''")
+
     for k, v in DEFAULT_SETTINGS.items():
-        db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
+        db.execute(_insert_ignore("settings", ["key", "value"]), (k, v))
     for k, v in EMAIL_SETTINGS.items():
-        db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
+        db.execute(_insert_ignore("settings", ["key", "value"]), (k, v))
     for k, v in SYNC_SETTINGS.items():
-        db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
+        db.execute(_insert_ignore("settings", ["key", "value"]), (k, v))
     db.commit()
     db.close()
 
 
-# Se llama al importar el módulo, para que funcione tanto con `python app.py`
-# como cuando un servidor WSGI (PythonAnywhere, gunicorn, etc.) importa `app`
-# directamente sin pasar por el bloque `if __name__ == "__main__":`.
 init_db()
 
 
-# ---------------------------------------------------------------------------
-# Respaldo automático de la base de datos
-# ---------------------------------------------------------------------------
-
 def _get_setting_value(key, default=""):
     try:
-        db = sqlite3.connect(DB_PATH)
+        raw = _raw_connection()
+        db = CompatConnection(raw)
         row = db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         db.close()
-        return row[0] if row and row[0] else default
+        return row["value"] if row and row["value"] else default
     except Exception:
         return default
 
 
 def do_backup():
-    """Copia clinica.db a backups/ de forma segura (aunque el servidor esté escribiendo)
-    usando la API de respaldo de SQLite, y elimina respaldos antiguos si hay demasiados."""
-    if not os.path.exists(DB_PATH):
+    """Copia clinica.db a backups/ (solo aplica con SQLite local; en
+    PostgreSQL no hay un solo archivo que copiar — usa el respaldo de tu
+    proveedor de base de datos, ej. Render Postgres)."""
+    if USE_POSTGRES or not os.path.exists(DB_PATH):
         return None
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     dest_path = os.path.join(BACKUP_DIR, f"clinica_{stamp}.db")
@@ -318,15 +389,11 @@ def do_backup():
     except Exception as e:
         print(f"[respaldo] Error al respaldar: {e}")
         return None
-
-    # También copiamos los archivos subidos (fotos, documentos, logo) la primera vez del día,
-    # comprimidos junto al respaldo, para no perder radiografías/documentos si falla el disco.
     try:
         if os.path.isdir(UPLOAD_DIR) and os.listdir(UPLOAD_DIR):
             shutil.make_archive(os.path.join(BACKUP_DIR, f"uploads_{stamp}"), "zip", UPLOAD_DIR)
     except Exception as e:
         print(f"[respaldo] No se pudieron respaldar los archivos subidos: {e}")
-
     _prune_backups()
     _sync_to_folder([dest_path] + ([f"{os.path.join(BACKUP_DIR, f'uploads_{stamp}.zip')}"] if os.path.exists(os.path.join(BACKUP_DIR, f"uploads_{stamp}.zip")) else []))
     print(f"[respaldo] Copia de seguridad creada: {os.path.basename(dest_path)}")
@@ -334,9 +401,6 @@ def do_backup():
 
 
 def _sync_to_folder(paths):
-    """Copia archivos de respaldo a una carpeta local sincronizada con Drive/OneDrive/Dropbox,
-    si el administrador configuró una en Ajustes. No requiere internet: solo copia el archivo
-    a esa carpeta; es la app de Drive/OneDrive la que luego lo sube cuando haya conexión."""
     folder = _get_setting_value("backup_folder", "")
     if not folder:
         return False
@@ -371,13 +435,13 @@ def _prune_backups():
 
 
 def _todays_backup_exists():
+    if USE_POSTGRES:
+        return True
     today = datetime.now().strftime("%Y-%m-%d")
     return any(f.startswith(f"clinica_{today}") for f in os.listdir(BACKUP_DIR))
 
 
 def _backup_scheduler_loop():
-    # Si no existe ningún respaldo de hoy al iniciar la app, hace uno de una vez
-    # (cubre el caso de "cerré la app antes de la hora programada ayer").
     if _get_setting_value("backup_enabled", "1") == "1" and not _todays_backup_exists():
         do_backup()
     while True:
@@ -392,7 +456,7 @@ def _backup_scheduler_loop():
         if target <= now:
             target = target.replace(day=now.day) + timedelta(days=1)
         sleep_seconds = (target - now).total_seconds()
-        time.sleep(min(sleep_seconds, 3600))  # revisa cada hora como máximo, por si cambian la hora configurada
+        time.sleep(min(sleep_seconds, 3600))
         if datetime.now() >= target and _get_setting_value("backup_enabled", "1") == "1":
             if not _todays_backup_exists():
                 do_backup()
@@ -403,31 +467,17 @@ _backup_thread_started = False
 
 def start_backup_scheduler():
     global _backup_thread_started
-    if _backup_thread_started:
+    if _backup_thread_started or USE_POSTGRES:
         return
     _backup_thread_started = True
     t = threading.Thread(target=_backup_scheduler_loop, daemon=True)
     t.start()
 
 
-# El respaldo automático programado (el hilo en segundo plano) solo se arranca
-# cuando corres `python app.py` directamente en tu propia PC (ver el bloque
-# `if __name__ == "__main__":` al final del archivo). NO se arranca aquí al
-# nivel del módulo, porque en un hosting con WSGI (PythonAnywhere, gunicorn,
-# etc.) la aplicación se importa y luego el proceso se "clona" (fork) para
-# atender peticiones — un hilo en segundo plano iniciado antes de ese clonado
-# puede quedar trabado para siempre, dejando la página cargando sin fin y sin
-# ningún error en el log. Puedes seguir haciendo respaldos manuales desde
-# Configuración → Respaldo de datos sin importar dónde esté corriendo la app;
-# para respaldos automáticos en un hosting, usa la función de "tareas
-# programadas" (Scheduled tasks) que ofrezca ese hosting.
-
-
 # ---------------------------------------------------------------------------
 # Autenticación
 # ---------------------------------------------------------------------------
 
-# Throttling simple en memoria contra intentos de fuerza bruta al login.
 _failed_attempts = {}
 MAX_ATTEMPTS = 6
 LOCKOUT_SECONDS = 60
@@ -472,17 +522,15 @@ def has_permission(view_key):
     return view_key in [p for p in perms.split(",") if p]
 
 
-# Mapea prefijos de rutas de la API a la sección/permiso que controlan.
-# Se revisa en orden; la primera coincidencia gana.
 API_PERMISSION_MAP = [
-    ("/api/users", None),  # admin_required se aplica en la propia ruta
-    ("/api/backups", None),  # admin_required se aplica en la propia ruta
-    ("/api/sync", None),  # admin_required se aplica en la propia ruta
-    ("/api/settings", None),  # GET libre para todos, escritura protegida en la propia ruta
+    ("/api/users", None),
+    ("/api/backups", None),
+    ("/api/sync", None),
+    ("/api/settings", None),
     ("/api/change-password", None),
     ("/api/me", None),
     ("/api/appointments", "agenda"),
-    ("/api/patients", "pacientes"),  # incluye /api/patients/<id>/odontogram y /documents, ver abajo
+    ("/api/patients", "pacientes"),
     ("/api/documents", "pacientes"),
     ("/api/budgets", "presupuestos"),
     ("/api/charges", "tratamientos"),
@@ -494,7 +542,7 @@ def enforce_permissions():
     if not request.path.startswith("/api/"):
         return
     if not session.get("user_id"):
-        return  # lo maneja login_required
+        return
     if session.get("role") == "admin":
         return
     if request.path.endswith("/odontogram") or request.path.endswith("/prescription"):
@@ -512,7 +560,6 @@ def enforce_permissions():
 
 @app.before_request
 def enforce_setup():
-    # Si todavía no hay ningún usuario, todo redirige a /setup (excepto la propia ruta y estáticos).
     if request.path in ("/setup", "/static") or request.path.startswith("/static/"):
         return
     if not any_user_exists() and request.path != "/setup":
@@ -622,10 +669,6 @@ def change_password():
     return jsonify({"ok": True})
 
 
-# ---------------------------------------------------------------------------
-# Página principal
-# ---------------------------------------------------------------------------
-
 @app.route("/")
 @login_required
 def index():
@@ -637,10 +680,6 @@ def index():
 def serve_upload(subpath):
     return send_from_directory(UPLOAD_DIR, subpath)
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _now():
     return time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -654,26 +693,26 @@ def _clean(s):
 
 
 def patient_to_dict(row):
-    d = {k: row[k] for k in row.keys()}
+    d = dict(row)
     d["photoUrl"] = ("/uploads/" + d["photo"]) if d.get("photo") else None
     return d
 
 
 def appt_to_dict(row):
-    d = {k: row[k] for k in row.keys()}
+    d = dict(row)
     d["patientId"] = d.pop("patient_id")
     return d
 
 
 def doc_to_dict(row):
-    d = {k: row[k] for k in row.keys()}
+    d = dict(row)
     d["patientId"] = d.pop("patient_id")
     d["url"] = "/uploads/documents/" + d["filename"]
     return d
 
 
 def charge_to_dict(row):
-    d = {k: row[k] for k in row.keys()}
+    d = dict(row)
     d["patientId"] = d.pop("patient_id")
     cost = d["cost"] or 0
     paid = d["paid"] or 0
@@ -687,15 +726,12 @@ def charge_to_dict(row):
     return d
 
 
-# ---------------------------------------------------------------------------
-# API: pacientes
-# ---------------------------------------------------------------------------
-
 @app.route("/api/patients", methods=["GET"])
 @login_required
 def list_patients():
     db = get_db()
-    rows = db.execute("SELECT * FROM patients ORDER BY name COLLATE NOCASE").fetchall()
+    order_sql = "SELECT * FROM patients ORDER BY name" if USE_POSTGRES else "SELECT * FROM patients ORDER BY name COLLATE NOCASE"
+    rows = db.execute(order_sql).fetchall()
     return jsonify([patient_to_dict(r) for r in rows])
 
 
@@ -814,10 +850,6 @@ def delete_patient_photo(pid):
     return jsonify(patient_to_dict(row))
 
 
-# ---------------------------------------------------------------------------
-# API: exámenes / radiografías (documentos por paciente)
-# ---------------------------------------------------------------------------
-
 VALID_DOC_CATEGORIES = {"radiografia", "examen", "otro"}
 
 
@@ -873,10 +905,6 @@ def delete_document(did):
         db.commit()
     return jsonify({"ok": True})
 
-
-# ---------------------------------------------------------------------------
-# API: citas
-# ---------------------------------------------------------------------------
 
 VALID_STATUS = {"confirmada", "pendiente", "cancelada"}
 
@@ -956,10 +984,6 @@ def delete_appointment(aid):
     db.commit()
     return jsonify({"ok": True})
 
-
-# ---------------------------------------------------------------------------
-# API: tratamientos / facturación (charges)
-# ---------------------------------------------------------------------------
 
 @app.route("/api/charges", methods=["GET"])
 @login_required
@@ -1042,10 +1066,6 @@ def delete_charge(cid):
     return jsonify({"ok": True})
 
 
-# ---------------------------------------------------------------------------
-# API: configuración / marca (nombre, logo, colores, tipografía)
-# ---------------------------------------------------------------------------
-
 ALLOWED_FONTS = {
     "Space Grotesk": "'Space Grotesk', sans-serif",
     "Inter": "'Inter', sans-serif",
@@ -1065,7 +1085,7 @@ def get_settings():
     result = dict(DEFAULT_SETTINGS)
     for r in rows:
         if r["key"] in EMAIL_SETTINGS or r["key"] in SYNC_SETTINGS:
-            continue  # nunca se exponen por este endpoint general
+            continue
         result[r["key"]] = r["value"]
     result["logoUrl"] = ("/uploads/" + result["logo_path"]) if result.get("logo_path") else None
     result["fonts"] = list(ALLOWED_FONTS.keys())
@@ -1154,10 +1174,6 @@ def update_email_settings():
     return get_email_settings()
 
 
-# ---------------------------------------------------------------------------
-# API: sincronización con una versión en línea (ej. PythonAnywhere)
-# ---------------------------------------------------------------------------
-
 @app.route("/api/settings/sync", methods=["GET"])
 @login_required
 @admin_required
@@ -1190,6 +1206,8 @@ def update_sync_settings():
 @login_required
 @admin_required
 def push_to_remote():
+    if USE_POSTGRES:
+        return jsonify({"error": "Esta versión usa PostgreSQL — no necesita 'empujar' respaldos de archivo. Configura respaldos desde tu proveedor de base de datos."}), 400
     try:
         import requests
     except ImportError:
@@ -1203,7 +1221,6 @@ def push_to_remote():
     if not remote_url or not remote_user or not remote_pass:
         return jsonify({"error": "Primero configura tu versión en línea en Configuración → Sincronización."}), 400
 
-    # Siempre empuja el estado más reciente: genera un respaldo fresco antes de enviarlo.
     backup_path = do_backup()
     if not backup_path:
         return jsonify({"error": "No se pudo generar el respaldo a enviar."}), 500
@@ -1251,11 +1268,12 @@ def push_to_remote():
 @login_required
 @admin_required
 def receive_backup():
+    if USE_POSTGRES:
+        return jsonify({"error": "Esta versión usa PostgreSQL — no puede recibir un respaldo de archivo SQLite."}), 400
     file = request.files.get("backup")
     if not file:
         return jsonify({"error": "No se recibió ningún archivo de respaldo."}), 400
 
-    # Respaldo de seguridad del estado actual de ESTE servidor antes de sobrescribir.
     do_backup()
 
     tmp_path = os.path.join(BACKUP_DIR, "_incoming_sync.db")
@@ -1387,10 +1405,6 @@ def delete_logo():
     return get_settings()
 
 
-# ---------------------------------------------------------------------------
-# API: respaldos
-# ---------------------------------------------------------------------------
-
 def backup_to_dict(filename):
     path = os.path.join(BACKUP_DIR, filename)
     stamp = filename[len("clinica_"):-len(".db")]
@@ -1410,6 +1424,8 @@ def backup_to_dict(filename):
 @login_required
 @admin_required
 def list_backups():
+    if USE_POSTGRES:
+        return jsonify([])
     files = sorted(
         [f for f in os.listdir(BACKUP_DIR) if f.startswith("clinica_") and f.endswith(".db")],
         reverse=True,
@@ -1421,6 +1437,8 @@ def list_backups():
 @login_required
 @admin_required
 def create_backup_now():
+    if USE_POSTGRES:
+        return jsonify({"error": "Esta versión usa PostgreSQL — los respaldos de archivo no aplican. Usa el sistema de respaldos de tu proveedor de base de datos."}), 400
     path = do_backup()
     if not path:
         return jsonify({"error": "No se pudo crear el respaldo."}), 500
@@ -1456,6 +1474,8 @@ def delete_backup(filename):
 @login_required
 @admin_required
 def sync_backup_folder_now():
+    if USE_POSTGRES:
+        return jsonify({"error": "Esta versión usa PostgreSQL — no aplica."}), 400
     folder = _get_setting_value("backup_folder", "")
     if not folder:
         return jsonify({"error": "Primero configura una carpeta de sincronización."}), 400
@@ -1481,6 +1501,8 @@ def sync_backup_folder_now():
 @login_required
 @admin_required
 def restore_backup(filename):
+    if USE_POSTGRES:
+        return jsonify({"error": "Esta versión usa PostgreSQL — no aplica restaurar un respaldo de archivo SQLite."}), 400
     safe = secure_filename(filename)
     backup_path = os.path.join(BACKUP_DIR, safe)
     if not os.path.exists(backup_path):
@@ -1489,7 +1511,6 @@ def restore_backup(filename):
     data = request.get_json(silent=True) or {}
     restore_uploads = bool(data.get("restoreUploads"))
 
-    # Respaldo de seguridad del estado actual antes de sobrescribir, por si algo sale mal.
     do_backup()
 
     try:
@@ -1515,10 +1536,6 @@ def restore_backup(filename):
     session.clear()
     return jsonify({"ok": True, "message": "Respaldo restaurado. Vuelve a iniciar sesión."})
 
-
-# ---------------------------------------------------------------------------
-# API: odontograma
-# ---------------------------------------------------------------------------
 
 ODONTO_STATUSES = {"sano", "caries", "obturado", "corona", "ausente", "extraccion", "implante", "endodoncia"}
 
@@ -1564,10 +1581,6 @@ def upsert_odontogram(pid):
     return jsonify([dict(r) for r in rows])
 
 
-# ---------------------------------------------------------------------------
-# API: receta de medicamentos
-# ---------------------------------------------------------------------------
-
 @app.route("/api/patients/<pid>/prescription", methods=["GET"])
 @login_required
 def get_prescription(pid):
@@ -1598,10 +1611,6 @@ def save_prescription(pid):
     db.commit()
     return jsonify({"medications": medications, "instructions": instructions, "updated_at": now})
 
-
-# ---------------------------------------------------------------------------
-# API: presupuestos
-# ---------------------------------------------------------------------------
 
 BUDGET_STATUSES = {"pendiente", "aprobado", "rechazado"}
 
@@ -1716,10 +1725,6 @@ def delete_budget(bid):
     db.commit()
     return jsonify({"ok": True})
 
-
-# ---------------------------------------------------------------------------
-# API: sesión actual y gestión de usuarios (solo administrador)
-# ---------------------------------------------------------------------------
 
 def user_to_dict(row):
     perms = row["permissions"] or ""
@@ -1838,9 +1843,6 @@ if __name__ == "__main__":
     print("\nClínica Dental corriendo en http://localhost:5000\n")
     try:
         from waitress import serve
-        # waitress maneja varias peticiones a la vez de forma segura (útil si
-        # 2 personas usan la app al mismo tiempo desde esta misma PC/red),
-        # a diferencia del servidor de desarrollo simple de Flask.
         serve(app, host="127.0.0.1", port=5000, threads=4)
     except ImportError:
         print("(Sugerencia: instala 'waitress' con pip install -r requirements.txt")
