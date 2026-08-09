@@ -1370,47 +1370,61 @@ def receive_backup():
 
 
 def send_email_with_attachment(to_addr, subject, body, file_bytes, file_name):
+    """Envía un correo con adjunto usando la API de Brevo (HTTPS), en vez de
+    SMTP directo. Render bloquea las conexiones salientes a los puertos SMTP
+    (25, 465, 587) en el plan gratuito, así que usar SMTP directo (Gmail,
+    etc.) no funciona ahí. La API de Brevo viaja por HTTPS normal, que sí
+    está permitido.
+
+    Requiere la variable de entorno BREVO_API_KEY configurada en Render, y
+    un remitente verificado en Brevo (Senders). El correo de "para" y el
+    nombre del remitente se siguen tomando de Configuración → Correo.
+    """
+    import base64
+    import json as json_lib
+    import urllib.error
+    import urllib.request
+
     db = get_db()
     rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
-    host = rows.get("smtp_host", "")
-    port = int(rows.get("smtp_port") or 587)
-    user = rows.get("smtp_user", "")
-    password = rows.get("smtp_password", "")
-    use_tls = rows.get("smtp_use_tls", "1") == "1"
+    sender_email = rows.get("smtp_user", "")
     from_name = rows.get("smtp_from_name") or rows.get("clinic_name", "Clínica Dental")
 
-    if not host or not user or not password:
+    api_key = os.environ.get("BREVO_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Falta configurar BREVO_API_KEY en las variables de entorno de Render.")
+    if not sender_email:
         raise RuntimeError("El correo de la clínica no está configurado todavía (Configuración → Correo).")
 
-    msg = MIMEMultipart()
-    msg["From"] = f"{from_name} <{user}>"
-    msg["To"] = to_addr
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
+    payload = {
+        "sender": {"name": from_name, "email": sender_email},
+        "to": [{"email": to_addr}],
+        "subject": subject,
+        "textContent": body,
+        "attachment": [
+            {
+                "content": base64.b64encode(file_bytes).decode("ascii"),
+                "name": file_name,
+            }
+        ],
+    }
 
-    part = MIMEApplication(file_bytes, Name=file_name)
-    part["Content-Disposition"] = f'attachment; filename="{file_name}"'
-    msg.attach(part)
-
-    # Render (y otros hostings) a veces no tienen salida por IPv6 aunque el
-    # servidor SMTP sí publique una dirección IPv6 (AAAA). Si dejamos que
-    # smtplib elija automáticamente, puede intentar esa ruta rota y fallar
-    # con "Network is unreachable". Para evitarlo, resolvemos la IPv4 del
-    # host manualmente y nos conectamos directo a esa dirección.
-    import socket
-
+    req = urllib.request.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json_lib.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
     try:
-        ipv4_addr = socket.getaddrinfo(host, port, socket.AF_INET)[0][4][0]
-    except Exception:
-        ipv4_addr = host  # si falla la resolución manual, dejamos que smtplib lo intente igual
-
-    with smtplib.SMTP(ipv4_addr, port, timeout=20) as server:
-        server.ehlo(host)
-        if use_tls:
-            server.starttls()
-            server.ehlo(host)
-        server.login(user, password)
-        server.sendmail(user, [to_addr], msg.as_string())
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            resp.read()
+    except urllib.error.HTTPError as e:
+        detalle = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Brevo rechazó el envío ({e.code}): {detalle}")
 
 
 @app.route("/api/cron/email-backup", methods=["GET", "POST"])
