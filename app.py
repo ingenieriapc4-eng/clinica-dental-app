@@ -1415,10 +1415,10 @@ def cron_email_backup():
     provided = request.args.get("key") or request.headers.get("X-Backup-Key", "")
     if not expected or provided != expected:
         return jsonify({"error": "No autorizado."}), 401
-    ok = do_email_backup()
+    ok, detalle = do_email_backup()
     if ok:
         return jsonify({"ok": True, "message": "Respaldo enviado por correo."})
-    return jsonify({"ok": False, "message": "No se pudo enviar (revisa los logs)."}), 500
+    return jsonify({"ok": False, "message": f"No se pudo enviar: {detalle}"}), 500
 
 
 def do_email_backup():
@@ -1432,8 +1432,8 @@ def do_email_backup():
             rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
             to_addr = rows.get("smtp_user", "")
             if not to_addr:
-                print("[respaldo por correo] Correo no configurado todavía, se omite el envío de hoy.")
-                return False
+                print("[respaldo por correo] Correo no configurado todavía, se omite el envío de hoy.", flush=True)
+                return False, "No hay un correo de la clínica configurado en Configuración → Correo."
             payload = generate_backup_payload(db)
             clinic = rows.get("clinic_name") or "Clínica Dental"
             stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -1447,11 +1447,11 @@ def do_email_backup():
                 payload,
                 fname,
             )
-            print(f"[respaldo por correo] Enviado correctamente: {fname}")
-            return True
+            print(f"[respaldo por correo] Enviado correctamente: {fname}", flush=True)
+            return True, ""
         except Exception as e:
-            print(f"[respaldo por correo] Error al enviar: {e}")
-            return False
+            print(f"[respaldo por correo] Error al enviar: {e}", flush=True)
+            return False, str(e)
         finally:
             close_db()
 
