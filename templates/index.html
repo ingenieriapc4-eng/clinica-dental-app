@@ -24,7 +24,7 @@
     --ok-light:#E7F3EC;
     --warn:#B8862E;
     --warn-light:#FBF1DF;
-    --radius:10px;
+    --radius:18px;
     --shadow: 0 1px 2px rgba(30,42,40,0.04), 0 4px 16px rgba(30,42,40,0.06);
     --font-display: 'Space Grotesk', sans-serif;
     --font-body: 'Inter', sans-serif;
@@ -64,7 +64,7 @@
   .navbtn{
     display:flex;align-items:center;gap:10px;
     background:transparent;border:none;color:#D8E8E1;
-    padding:10px 12px;border-radius:8px;font-size:14px;font-weight:500;
+    padding:10px 12px;border-radius:14px;font-size:14px;font-weight:500;
     text-align:left;transition:background .15s ease, color .15s ease;
   }
   .navbtn svg{width:17px;height:17px;flex-shrink:0;opacity:.85;}
@@ -87,7 +87,7 @@
   .view-head .sub{color:var(--muted);font-size:13px;margin:0;}
 
   .btn{
-    border:none;border-radius:8px;padding:10px 16px;font-size:13.5px;font-weight:600;
+    border:none;border-radius:14px;padding:10px 16px;font-size:13.5px;font-weight:600;
     display:inline-flex;align-items:center;gap:6px;transition:transform .1s ease, background .15s ease;
   }
   .btn:active{transform:scale(0.97);}
@@ -97,7 +97,7 @@
   .btn-ghost:hover{background:var(--primary-light);}
   .btn-danger{background:var(--danger-light);color:var(--danger);}
   .btn-danger:hover{background:#F5D6D2;}
-  .btn-sm{padding:6px 10px;font-size:12.5px;border-radius:7px;}
+  .btn-sm{padding:6px 10px;font-size:12.5px;border-radius:12px;}
 
   /* stat chips */
   .stats-row{display:flex;gap:12px;margin-bottom:22px;flex-wrap:wrap;}
@@ -116,7 +116,7 @@
   .kpi-card .kpi-icon{font-size:22px;opacity:.85;}
   .kpi-card-plain{background:transparent;border:1px dashed var(--border);box-shadow:none;}
   .kpi-value-plain{font-family:var(--font-body);font-size:19px;font-weight:600;color:var(--muted);}
-  .kpi-eye{background:transparent;border:none;font-size:16px;opacity:.6;padding:4px;border-radius:6px;}
+  .kpi-eye{background:transparent;border:none;font-size:16px;opacity:.6;padding:4px;border-radius:10px;}
   .kpi-eye:hover{opacity:1;background:var(--primary-light);}
   .dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;align-items:start;}
   @media (max-width:900px){.dash-grid{grid-template-columns:1fr;}}
@@ -134,8 +134,8 @@
 
   /* Odontograma */
   .odonto-patient-picker{margin-bottom:18px;max-width:340px;}
-  .odonto-patient-picker select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:13.5px;}
-  .tooth-arch{display:flex;justify-content:center;align-items:flex-end;gap:4px;flex-wrap:wrap;margin:10px 0 22px 0;padding:14px 10px;background:#fff;border:1px solid var(--border);border-radius:12px;}
+  .odonto-patient-picker select{width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--border);background:var(--card);font-size:13.5px;}
+  .tooth-arch{display:flex;justify-content:center;align-items:flex-end;gap:4px;flex-wrap:wrap;margin:10px 0 22px 0;padding:14px 10px;background:#fff;border:1px solid var(--border);border-radius:18px;}
   .tooth-svg{
     width:36px;background:none;border:none;cursor:pointer;padding:2px 0;
     display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .12s ease;
@@ -188,7 +188,7 @@
   /* search */
   .search-row{display:flex;gap:10px;margin-bottom:16px;}
   .search-row input[type="text"]{
-    flex:1;padding:10px 14px;border-radius:8px;border:1px solid var(--border);
+    flex:1;padding:10px 14px;border-radius:14px;border:1px solid var(--border);
     background:var(--card);font-size:13.5px;color:var(--ink);
   }
   .search-row input:focus{outline:2px solid var(--primary-light);border-color:var(--primary);}
@@ -224,8 +224,8 @@
 
   /* Agenda */
   .agenda-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
-  .date-nav{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:4px;}
-  .date-nav button{background:transparent;border:none;padding:6px 9px;border-radius:6px;color:var(--primary-dark);font-weight:600;}
+  .date-nav{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:4px;}
+  .date-nav button{background:transparent;border:none;padding:6px 9px;border-radius:10px;color:var(--primary-dark);font-weight:600;}
   .date-nav button:hover{background:var(--primary-light);}
   .date-nav input[type="date"]{border:none;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);background:transparent;padding:4px;}
   .today-label{font-size:13px;color:var(--muted);}
@@ -259,7 +259,7 @@
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
   .cal-dow{font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px;}
   .cal-day{
-    background:var(--card);border:1px solid var(--border);border-radius:8px;min-height:74px;
+    background:var(--card);border:1px solid var(--border);border-radius:14px;min-height:74px;
     padding:8px;cursor:pointer;position:relative;transition:border-color .12s ease;
   }
   .cal-day:hover{border-color:var(--primary);}
@@ -278,7 +278,7 @@
   .overlay.open{display:flex;}
   #modal-profile{z-index:45;}
   .modal{
-    background:var(--card);border-radius:14px;width:100%;max-width:520px;padding:26px 28px 24px;
+    background:var(--card);border-radius:20px;width:100%;max-width:520px;padding:26px 28px 24px;
     box-shadow:0 20px 60px rgba(30,42,40,0.25);
   }
   .modal h3{margin:0 0 4px 0;font-size:18px;}
@@ -286,7 +286,7 @@
   .field{margin-bottom:13px;}
   .field label{display:block;font-size:12px;font-weight:600;color:var(--primary-dark);margin-bottom:5px;}
   .field input,.field select,.field textarea{
-    width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;color:var(--ink);background:#FCFBF9;
+    width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:12px;font-size:13.5px;color:var(--ink);background:#FCFBF9;
   }
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--primary);background:#fff;}
   .field textarea{resize:vertical;min-height:56px;}
@@ -321,7 +321,7 @@
 
   .toast{
     position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
-    background:var(--ink);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:14px;font-size:13px;
     opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;z-index:99;
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
@@ -329,7 +329,7 @@
   /* ---- Avatar con foto / logo ---- */
   .avatar{overflow:hidden;}
   .avatar img{width:100%;height:100%;object-fit:cover;display:block;}
-  .brand-logo-img{width:34px;height:34px;object-fit:contain;border-radius:6px;margin-bottom:10px;display:block;}
+  .brand-logo-img{width:34px;height:34px;object-fit:contain;border-radius:10px;margin-bottom:10px;display:block;}
 
   /* ---- Badges extra (tratamientos / facturación) ---- */
   .badge.pagado{background:var(--ok-light);color:var(--ok);}
@@ -344,9 +344,9 @@
 
   /* ---- Exámenes / radiografías ---- */
   .doc-upload-row{display:flex;gap:8px;align-items:center;margin:10px 0 14px 0;flex-wrap:wrap;}
-  .doc-upload-row select{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;}
+  .doc-upload-row select{padding:8px 10px;border:1px solid var(--border);border-radius:12px;font-size:12.5px;}
   .doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:6px;}
-  .doc-item{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#FCFBF9;position:relative;}
+  .doc-item{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#FCFBF9;position:relative;}
   .doc-item .thumb{width:100%;height:80px;object-fit:cover;display:block;background:var(--primary-light);}
   .doc-item .thumb-icon{width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--primary-light);}
   .doc-item .doc-name{font-size:10.5px;color:var(--muted);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -361,7 +361,7 @@
 
   /* ---- Tratamientos / Facturación ---- */
   .charge-toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
-  .charge-toolbar select{padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-size:13px;}
+  .charge-toolbar select{padding:9px 12px;border-radius:14px;border:1px solid var(--border);background:var(--card);font-size:13px;}
   .charge-list{display:flex;flex-direction:column;gap:8px;}
   .charge-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:13px 16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   .charge-body{flex:1;min-width:160px;}
@@ -381,11 +381,11 @@
   .settings-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow);}
   .settings-card h3{font-size:15px;margin:0 0 14px 0;}
   .color-field{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-  .color-field input[type="color"]{width:42px;height:34px;border:1px solid var(--border);border-radius:7px;padding:2px;background:#fff;}
+  .color-field input[type="color"]{width:42px;height:34px;border:1px solid var(--border);border-radius:12px;padding:2px;background:#fff;}
   .color-field label{font-size:12.5px;font-weight:600;color:var(--primary-dark);flex:1;}
-  .logo-preview{width:100%;max-width:160px;height:70px;object-fit:contain;background:var(--primary-light);border-radius:8px;margin-bottom:12px;display:block;}
-  .logo-preview-empty{width:100%;max-width:160px;height:70px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;background:var(--primary-light);border-radius:8px;margin-bottom:12px;}
-  .font-preview{margin-top:6px;padding:10px 12px;border:1px dashed var(--border);border-radius:8px;font-size:14px;}
+  .logo-preview{width:100%;max-width:160px;height:70px;object-fit:contain;background:var(--primary-light);border-radius:14px;margin-bottom:12px;display:block;}
+  .logo-preview-empty{width:100%;max-width:160px;height:70px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;background:var(--primary-light);border-radius:14px;margin-bottom:12px;}
+  .font-preview{margin-top:6px;padding:10px 12px;border:1px dashed var(--border);border-radius:14px;font-size:14px;}
 
   @media (max-width:760px){
     #app{flex-direction:column;}
@@ -949,7 +949,7 @@
 <div class="overlay" id="modal-photo-viewer" style="z-index:70;align-items:center;">
   <div class="modal" style="max-width:720px;padding:12px;background:transparent;box-shadow:none;">
     <button class="close-x" data-close style="position:static;display:block;margin-left:auto;color:white;background:rgba(0,0,0,.45);border-radius:50%;width:34px;height:34px;">✕</button>
-    <img id="photo-viewer-image" alt="Foto ampliada del paciente" style="display:block;width:100%;max-height:78vh;object-fit:contain;border-radius:12px;background:#fff;">
+    <img id="photo-viewer-image" alt="Foto ampliada del paciente" style="display:block;width:100%;max-height:78vh;object-fit:contain;border-radius:18px;background:#fff;">
   </div>
 </div>
 
@@ -1736,7 +1736,7 @@
         h1{font-size:22px;margin:0 0 5px;color:#2F6F62}.kind{font-size:12px;color:#60716c;text-transform:uppercase;letter-spacing:.08em}
         .meta{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:18px;font-size:13px}.meta strong{display:block;margin-bottom:3px}
         table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}th{text-align:left;color:#60716c;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#f3f7f5}
-        th,td{padding:10px;border-bottom:1px solid #dfe5e1}.right{text-align:right}.total{font-size:15px;font-weight:bold}.summary{background:#f3f7f5;border-radius:8px;padding:14px;margin-top:18px}
+        th,td{padding:10px;border-bottom:1px solid #dfe5e1}.right{text-align:right}.total{font-size:15px;font-weight:bold}.summary{background:#f3f7f5;border-radius:14px;padding:14px;margin-top:18px}
         .footer{margin-top:50px;display:flex;justify-content:space-between;gap:30px;font-size:12px;color:#60716c}.sign{border-top:1px solid #9ca8a3;padding-top:6px;min-width:180px;text-align:center}
         @media print{body{padding:0}.sheet{max-width:none}.no-print{display:none}}
       </style></head><body><div class="sheet"><div class="head"><h1>${clinic}</h1><div class="kind">${escapeHtml(title)}</div></div>${content}<div class="footer"><span>Documento generado el ${escapeHtml(fmtHuman(fmtDate(new Date())))}</span><span class="sign">Firma / sello de la clínica</span></div></div><script>window.onload=function(){window.focus();window.print();};<\/script></body></html>`);
