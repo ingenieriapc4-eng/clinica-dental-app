@@ -28,8 +28,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from functools import wraps
 
-from flask import (Flask, g, jsonify, redirect, render_template, request,
-                    send_from_directory, session, url_for)
+from flask import (Flask, Response, g, jsonify, redirect, render_template,
+                    request, send_from_directory, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -336,6 +336,20 @@ def init_db():
             cost REAL NOT NULL DEFAULT 0
         )"""
     )
+    if USE_POSTGRES:
+        # En Render (y hostings similares) el disco del servidor NO es persistente:
+        # se borra en cada reinicio. Por eso, cuando se usa PostgreSQL, las fotos y
+        # documentos subidos se guardan dentro de la propia base de datos en vez
+        # de en el disco, para que sobrevivan los reinicios igual que el resto
+        # de la información.
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS file_blobs (
+                id TEXT PRIMARY KEY,
+                data BYTEA NOT NULL,
+                content_type TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )"""
+        )
     if not _column_exists(db, "patients", "photo"):
         db.execute("ALTER TABLE patients ADD COLUMN photo TEXT")
     if not _column_exists(db, "patients", "dui"):
@@ -678,6 +692,12 @@ def index():
 @app.route("/uploads/<path:subpath>")
 @login_required
 def serve_upload(subpath):
+    if USE_POSTGRES:
+        db = get_db()
+        row = db.execute("SELECT data, content_type FROM file_blobs WHERE id = ?", (subpath,)).fetchone()
+        if not row:
+            return jsonify({"error": "Archivo no encontrado."}), 404
+        return Response(bytes(row["data"]), mimetype=row["content_type"])
     return send_from_directory(UPLOAD_DIR, subpath)
 
 
@@ -798,7 +818,7 @@ def delete_patient(pid):
     db.execute("DELETE FROM patients WHERE id = ?", (pid,))
     db.commit()
     if row and row["photo"]:
-        _safe_remove(os.path.join(UPLOAD_DIR, row["photo"]))
+        _delete_uploaded_file(row["photo"])
     return jsonify({"ok": True})
 
 
@@ -808,6 +828,49 @@ def _safe_remove(path):
             os.remove(path)
     except (OSError, ValueError):
         pass
+
+
+def _save_uploaded_file(rel_path, file_storage):
+    """Guarda un archivo subido. En PostgreSQL (Render u otro hosting sin disco
+    persistente) lo guarda dentro de la base de datos; en SQLite local, en el
+    disco como siempre."""
+    if USE_POSTGRES:
+        data = file_storage.read()
+        content_type = file_storage.mimetype or "application/octet-stream"
+        db = get_db()
+        db.execute(
+            """INSERT INTO file_blobs (id, data, content_type, created_at) VALUES (?, ?, ?, ?)
+               ON CONFLICT (id) DO UPDATE SET data = excluded.data, content_type = excluded.content_type""",
+            (rel_path, psycopg2.Binary(data), content_type, _now()),
+        )
+        db.commit()
+    else:
+        file_storage.save(os.path.join(UPLOAD_DIR, rel_path))
+
+
+def _delete_uploaded_file(rel_path):
+    if not rel_path:
+        return
+    if USE_POSTGRES:
+        db = get_db()
+        db.execute("DELETE FROM file_blobs WHERE id = ?", (rel_path,))
+        db.commit()
+    else:
+        _safe_remove(os.path.join(UPLOAD_DIR, rel_path))
+
+
+def _read_uploaded_file(rel_path):
+    """Devuelve los bytes de un archivo subido, sin importar si vive en disco
+    (SQLite local) o en la base de datos (PostgreSQL). None si no existe."""
+    if USE_POSTGRES:
+        db = get_db()
+        row = db.execute("SELECT data FROM file_blobs WHERE id = ?", (rel_path,)).fetchone()
+        return bytes(row["data"]) if row else None
+    full_path = os.path.join(UPLOAD_DIR, rel_path)
+    if not os.path.exists(full_path):
+        return None
+    with open(full_path, "rb") as f:
+        return f.read()
 
 
 @app.route("/api/patients/<pid>/photo", methods=["POST"])
@@ -824,11 +887,11 @@ def upload_patient_photo(pid):
         return jsonify({"error": "Formato no permitido. Usa JPG, PNG, WEBP o GIF."}), 400
 
     if patient["photo"]:
-        _safe_remove(os.path.join(UPLOAD_DIR, patient["photo"]))
+        _delete_uploaded_file(patient["photo"])
 
     ext = secure_filename(file.filename).rsplit(".", 1)[1].lower()
     rel_path = f"photos/{pid}_{uuid.uuid4().hex[:8]}.{ext}"
-    file.save(os.path.join(UPLOAD_DIR, rel_path))
+    _save_uploaded_file(rel_path, file)
     db.execute("UPDATE patients SET photo = ?, updated_at = ? WHERE id = ?", (rel_path, _now(), pid))
     db.commit()
     row = db.execute("SELECT * FROM patients WHERE id = ?", (pid,)).fetchone()
@@ -843,7 +906,7 @@ def delete_patient_photo(pid):
     if not patient:
         return jsonify({"error": "Paciente no encontrado."}), 404
     if patient["photo"]:
-        _safe_remove(os.path.join(UPLOAD_DIR, patient["photo"]))
+        _delete_uploaded_file(patient["photo"])
     db.execute("UPDATE patients SET photo = NULL, updated_at = ? WHERE id = ?", (_now(), pid))
     db.commit()
     row = db.execute("SELECT * FROM patients WHERE id = ?", (pid,)).fetchone()
@@ -883,7 +946,7 @@ def upload_document(pid):
     ext = original.rsplit(".", 1)[1].lower()
     did = uuid.uuid4().hex
     stored_name = f"{did}.{ext}"
-    file.save(os.path.join(DOCS_DIR, stored_name))
+    _save_uploaded_file(f"documents/{stored_name}", file)
     db.execute(
         """INSERT INTO documents (id, patient_id, filename, original_name, category, uploaded_at)
            VALUES (?,?,?,?,?,?)""",
@@ -900,7 +963,7 @@ def delete_document(did):
     db = get_db()
     row = db.execute("SELECT * FROM documents WHERE id = ?", (did,)).fetchone()
     if row:
-        _safe_remove(os.path.join(DOCS_DIR, row["filename"]))
+        _delete_uploaded_file(f"documents/{row['filename']}")
         db.execute("DELETE FROM documents WHERE id = ?", (did,))
         db.commit()
     return jsonify({"ok": True})
@@ -1306,7 +1369,7 @@ def receive_backup():
     return jsonify({"ok": True})
 
 
-def send_email_with_attachment(to_addr, subject, body, file_path, file_name):
+def send_email_with_attachment(to_addr, subject, body, file_bytes, file_name):
     db = get_db()
     rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
     host = rows.get("smtp_host", "")
@@ -1325,8 +1388,7 @@ def send_email_with_attachment(to_addr, subject, body, file_path, file_name):
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
-    with open(file_path, "rb") as f:
-        part = MIMEApplication(f.read(), Name=file_name)
+    part = MIMEApplication(file_bytes, Name=file_name)
     part["Content-Disposition"] = f'attachment; filename="{file_name}"'
     msg.attach(part)
 
@@ -1352,8 +1414,8 @@ def send_document_email(did):
     patient = db.execute("SELECT * FROM patients WHERE id = ?", (row["patient_id"],)).fetchone()
     clinic_name = _get_setting_value("clinic_name", "Clínica Dental")
 
-    file_path = os.path.join(DOCS_DIR, row["filename"])
-    if not os.path.exists(file_path):
+    file_bytes = _read_uploaded_file(f"documents/{row['filename']}")
+    if file_bytes is None:
         return jsonify({"error": "El archivo ya no está disponible en el servidor."}), 404
 
     subject = data.get("subject") or f"Tu examen de {clinic_name}"
@@ -1363,7 +1425,7 @@ def send_document_email(did):
         f"Saludos."
     )
     try:
-        send_email_with_attachment(to_addr, subject, body, file_path, row["original_name"])
+        send_email_with_attachment(to_addr, subject, body, file_bytes, row["original_name"])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     return jsonify({"ok": True})
@@ -1382,11 +1444,11 @@ def upload_logo():
     db = get_db()
     old = db.execute("SELECT value FROM settings WHERE key = 'logo_path'").fetchone()
     if old and old["value"]:
-        _safe_remove(os.path.join(UPLOAD_DIR, old["value"]))
+        _delete_uploaded_file(old["value"])
 
     ext = secure_filename(file.filename).rsplit(".", 1)[1].lower()
     rel_path = f"branding/logo_{uuid.uuid4().hex[:8]}.{ext}"
-    file.save(os.path.join(UPLOAD_DIR, rel_path))
+    _save_uploaded_file(rel_path, file)
     db.execute("UPDATE settings SET value = ? WHERE key = 'logo_path'", (rel_path,))
     db.commit()
     return get_settings()
@@ -1399,7 +1461,7 @@ def delete_logo():
     db = get_db()
     old = db.execute("SELECT value FROM settings WHERE key = 'logo_path'").fetchone()
     if old and old["value"]:
-        _safe_remove(os.path.join(UPLOAD_DIR, old["value"]))
+        _delete_uploaded_file(old["value"])
     db.execute("UPDATE settings SET value = '' WHERE key = 'logo_path'")
     db.commit()
     return get_settings()
@@ -1453,6 +1515,99 @@ def download_backup(filename):
     if safe != filename or not os.path.exists(os.path.join(BACKUP_DIR, safe)):
         return jsonify({"error": "Respaldo no encontrado."}), 404
     return send_from_directory(BACKUP_DIR, safe, as_attachment=True)
+
+
+# Todas las tablas que se incluyen en la exportación completa, en el orden
+# correcto para poder reconstruirlas después (padres antes que hijos).
+EXPORT_TABLES = [
+    "users", "patients", "appointments", "documents", "charges", "settings",
+    "odontogram", "prescriptions", "budgets", "budget_items",
+]
+
+
+@app.route("/api/backups/export", methods=["GET"])
+@login_required
+@admin_required
+def export_full_backup():
+    """Descarga toda la información de la clínica en un solo archivo JSON,
+    incluyendo las fotos/documentos guardados en la base de datos (en base64).
+    Funciona igual con SQLite o PostgreSQL — pensado especialmente para cuando
+    se usa PostgreSQL (Render, Neon, etc.), donde no hay un solo archivo de
+    base de datos que descargar directamente como en SQLite. Guarda este
+    archivo periódicamente fuera de tu hosting (en tu PC, un USB, Drive) como
+    respaldo real e independiente de cualquier proveedor."""
+    import base64
+    import json as json_lib
+
+    db = get_db()
+    data = {"exported_at": _now(), "tables": {}}
+    for table in EXPORT_TABLES:
+        rows = db.execute(f"SELECT * FROM {table}").fetchall()
+        data["tables"][table] = [dict(r) for r in rows]
+
+    if USE_POSTGRES:
+        blobs = db.execute("SELECT id, data, content_type, created_at FROM file_blobs").fetchall()
+        data["files"] = [
+            {
+                "id": b["id"],
+                "contentType": b["content_type"],
+                "createdAt": b["created_at"],
+                "dataBase64": base64.b64encode(bytes(b["data"])).decode("ascii"),
+            }
+            for b in blobs
+        ]
+    else:
+        data["files"] = []  # en SQLite local, los archivos ya viven en la carpeta uploads/
+
+    payload = json_lib.dumps(data, default=str).encode("utf-8")
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    return Response(
+        payload,
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="respaldo_completo_{stamp}.json"'},
+    )
+
+
+@app.route("/api/backups/import", methods=["POST"])
+@login_required
+@admin_required
+def import_full_backup():
+    """Restaura toda la información desde un archivo generado por
+    /api/backups/export. Reemplaza TODO lo que haya actualmente."""
+    import base64
+    import json as json_lib
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "No se recibió ningún archivo."}), 400
+    try:
+        data = json_lib.loads(file.read().decode("utf-8"))
+    except Exception as e:
+        return jsonify({"error": f"El archivo no es un respaldo válido: {e}"}), 400
+
+    db = get_db()
+    for table in reversed(EXPORT_TABLES):
+        db.execute(f"DELETE FROM {table}")
+    if USE_POSTGRES:
+        db.execute("DELETE FROM file_blobs")
+
+    for table in EXPORT_TABLES:
+        for row in data.get("tables", {}).get(table, []):
+            cols = list(row.keys())
+            cols_sql = ", ".join(cols)
+            placeholders = ", ".join(["?"] * len(cols))
+            db.execute(f"INSERT INTO {table} ({cols_sql}) VALUES ({placeholders})", tuple(row[c] for c in cols))
+
+    if USE_POSTGRES:
+        for f in data.get("files", []):
+            db.execute(
+                "INSERT INTO file_blobs (id, data, content_type, created_at) VALUES (?, ?, ?, ?)",
+                (f["id"], psycopg2.Binary(base64.b64decode(f["dataBase64"])), f["contentType"], f["createdAt"]),
+            )
+
+    db.commit()
+    session.clear()
+    return jsonify({"ok": True, "message": "Respaldo restaurado. Vuelve a iniciar sesión."})
 
 
 @app.route("/api/backups/<path:filename>", methods=["DELETE"])

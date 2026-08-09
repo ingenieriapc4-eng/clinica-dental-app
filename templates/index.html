@@ -688,6 +688,13 @@
             <button class="btn btn-ghost btn-sm" id="btn-copy-folder-now">Copiar el último respaldo a esa carpeta ahora</button>
           </div>
           <div id="backup-list" style="margin-top:14px;"></div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+          <h3 style="font-size:14px;">Respaldo completo descargable</h3>
+          <p class="sub" style="margin-bottom:12px;">Descarga toda la información (pacientes, citas, tratamientos, fotos y documentos) en un solo archivo — independiente de dónde esté alojada la app. Guárdalo en tu PC, USB o Drive de vez en cuando, como seguro extra sin depender de ningún hosting.</p>
+          <div class="modal-actions" style="justify-content:flex-start;gap:10px;">
+            <button class="btn btn-primary btn-sm" id="btn-export-full">⬇ Descargar respaldo completo</button>
+            <label class="btn btn-ghost btn-sm">Restaurar desde archivo<input type="file" id="import-full-input" accept="application/json" style="display:none;"></label>
+          </div>
         </div>
         <div class="settings-card" id="cfg-email-card" style="grid-column:1/-1;display:none;">
           <h3>Correo (para enviar exámenes por email)</h3>
@@ -2460,6 +2467,27 @@
       await api('/api/backups/sync-folder', {method:'POST'});
       toast('Copiado a la carpeta sincronizada');
     }catch(err){ toast(err.message); }
+  });
+
+  $('#btn-export-full').addEventListener('click', ()=>{
+    window.open('/api/backups/export', '_blank');
+  });
+
+  $('#import-full-input').addEventListener('change', async e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    if(!confirm('Esto va a REEMPLAZAR toda la información actual con la de ese archivo. ¿Continuar?')){
+      e.target.value = '';
+      return;
+    }
+    const fd = new FormData();
+    fd.append('file', file);
+    try{
+      const res = await api('/api/backups/import', {method:'POST', body: fd});
+      alert(res.message || 'Respaldo restaurado. Vuelve a iniciar sesión.');
+      window.location.href = '/login';
+    }catch(err){ toast(err.message); }
+    e.target.value = '';
   });
 
   /* ---------------- CORREO (solo admin) ---------------- */
