@@ -982,8 +982,21 @@ def upload_document(pid):
     original = secure_filename(file.filename)
     ext = original.rsplit(".", 1)[1].lower()
     did = uuid.uuid4().hex
-    stored_name = f"{did}.{ext}"
-    _save_uploaded_file(f"documents/{stored_name}", file)
+
+    if ext in IMAGE_EXTS:
+        # Igual que con la foto de perfil: comprimimos para ahorrar espacio.
+        # Usamos un tamaño mayor (1600px) y más calidad que en la foto de
+        # perfil, para que una radiografía siga siendo legible clínicamente.
+        try:
+            img_bytes, content_type, ext = _resize_and_compress_image(file, max_dimension=1600, quality=85)
+        except Exception as e:
+            return jsonify({"error": f"No se pudo procesar la imagen: {e}"}), 400
+        stored_name = f"{did}.{ext}"
+        _save_uploaded_bytes(f"documents/{stored_name}", img_bytes, content_type)
+    else:
+        # PDF: se guarda tal cual, sin comprimir.
+        stored_name = f"{did}.{ext}"
+        _save_uploaded_file(f"documents/{stored_name}", file)
     db.execute(
         """INSERT INTO documents (id, patient_id, filename, original_name, category, uploaded_at)
            VALUES (?,?,?,?,?,?)""",
