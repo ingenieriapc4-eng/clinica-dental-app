@@ -1399,6 +1399,79 @@ def send_email_with_attachment(to_addr, subject, body, file_bytes, file_name):
         server.sendmail(user, [to_addr], msg.as_string())
 
 
+def do_email_backup():
+    """Genera el respaldo completo y lo envía por correo a la cuenta de la
+    clínica configurada en Configuración → Correo. A diferencia de
+    do_backup() (que solo funciona con SQLite local), esto sí funciona con
+    PostgreSQL/Neon — por eso es el respaldo que corre en Render."""
+    with app.app_context():
+        try:
+            db = get_db()
+            rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
+            to_addr = rows.get("smtp_user", "")
+            if not to_addr:
+                print("[respaldo por correo] Correo no configurado todavía, se omite el envío de hoy.")
+                return False
+            payload = generate_backup_payload(db)
+            clinic = rows.get("clinic_name") or "Clínica Dental"
+            stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            fname = f"respaldo_completo_{stamp}.json"
+            send_email_with_attachment(
+                to_addr,
+                f"Respaldo diario - {clinic} - {datetime.now().strftime('%d/%m/%Y')}",
+                "Adjunto el respaldo automático diario de la base de datos de la clínica "
+                "(pacientes, citas, cargos, presupuestos y documentos). Guarda este correo "
+                "o descarga el archivo adjunto en un lugar seguro fuera de Render y Neon.",
+                payload,
+                fname,
+            )
+            print(f"[respaldo por correo] Enviado correctamente: {fname}")
+            return True
+        except Exception as e:
+            print(f"[respaldo por correo] Error al enviar: {e}")
+            return False
+        finally:
+            close_db()
+
+
+def _email_backup_scheduler_loop():
+    while True:
+        target_hour, target_min, enabled = 21, 0, True
+        try:
+            with app.app_context():
+                db = get_db()
+                rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
+                close_db()
+            enabled = rows.get("backup_enabled", "1") == "1"
+            hh, mm = (rows.get("backup_hour", "21:00").split(":") + ["0", "0"])[:2]
+            target_hour, target_min = int(hh), int(mm)
+        except Exception:
+            pass
+        now = datetime.now()
+        target = now.replace(hour=target_hour, minute=target_min, second=0, microsecond=0)
+        if target <= now:
+            target = target + timedelta(days=1)
+        sleep_seconds = (target - now).total_seconds()
+        time.sleep(min(sleep_seconds, 3600))
+        if datetime.now() >= target and enabled:
+            do_email_backup()
+
+
+_email_backup_thread_started = False
+
+
+def start_email_backup_scheduler():
+    """Inicia el hilo que manda el respaldo por correo una vez al día, a la
+    misma hora configurada en Configuración → Copias de seguridad. Funciona
+    igual con SQLite o con PostgreSQL/Neon."""
+    global _email_backup_thread_started
+    if _email_backup_thread_started:
+        return
+    _email_backup_thread_started = True
+    t = threading.Thread(target=_email_backup_scheduler_loop, daemon=True)
+    t.start()
+
+
 @app.route("/api/documents/<did>/send-email", methods=["POST"])
 @login_required
 def send_document_email(did):
@@ -1525,21 +1598,14 @@ EXPORT_TABLES = [
 ]
 
 
-@app.route("/api/backups/export", methods=["GET"])
-@login_required
-@admin_required
-def export_full_backup():
-    """Descarga toda la información de la clínica en un solo archivo JSON,
-    incluyendo las fotos/documentos guardados en la base de datos (en base64).
-    Funciona igual con SQLite o PostgreSQL — pensado especialmente para cuando
-    se usa PostgreSQL (Render, Neon, etc.), donde no hay un solo archivo de
-    base de datos que descargar directamente como en SQLite. Guarda este
-    archivo periódicamente fuera de tu hosting (en tu PC, un USB, Drive) como
-    respaldo real e independiente de cualquier proveedor."""
+def generate_backup_payload(db):
+    """Genera los bytes del respaldo completo (pacientes, citas, cargos,
+    presupuestos, usuarios y — en PostgreSQL/Neon — los archivos adjuntos
+    en base64). Usado tanto por la descarga manual (/api/backups/export)
+    como por el envío automático diario por correo."""
     import base64
     import json as json_lib
 
-    db = get_db()
     data = {"exported_at": _now(), "tables": {}}
     for table in EXPORT_TABLES:
         rows = db.execute(f"SELECT * FROM {table}").fetchall()
@@ -1559,7 +1625,22 @@ def export_full_backup():
     else:
         data["files"] = []  # en SQLite local, los archivos ya viven en la carpeta uploads/
 
-    payload = json_lib.dumps(data, default=str).encode("utf-8")
+    return json_lib.dumps(data, default=str).encode("utf-8")
+
+
+@app.route("/api/backups/export", methods=["GET"])
+@login_required
+@admin_required
+def export_full_backup():
+    """Descarga toda la información de la clínica en un solo archivo JSON,
+    incluyendo las fotos/documentos guardados en la base de datos (en base64).
+    Funciona igual con SQLite o PostgreSQL — pensado especialmente para cuando
+    se usa PostgreSQL (Render, Neon, etc.), donde no hay un solo archivo de
+    base de datos que descargar directamente como en SQLite. Guarda este
+    archivo periódicamente fuera de tu hosting (en tu PC, un USB, Drive) como
+    respaldo real e independiente de cualquier proveedor."""
+    db = get_db()
+    payload = generate_backup_payload(db)
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     return Response(
         payload,
@@ -1995,6 +2076,7 @@ def delete_user(uid):
 
 if __name__ == "__main__":
     start_backup_scheduler()
+    start_email_backup_scheduler()
     print("\nClínica Dental corriendo en http://localhost:5000\n")
     try:
         from waitress import serve
