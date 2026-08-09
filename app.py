@@ -830,6 +830,39 @@ def _safe_remove(path):
         pass
 
 
+def _resize_and_compress_image(file_storage, max_dimension=800, quality=82):
+    """Redimensiona (máximo 800px de lado) y comprime a JPEG una imagen antes
+    de guardarla, para no ocupar espacio de más — importante sobre todo con
+    el límite de 0.5 GB del plan gratuito de Neon. Devuelve
+    (bytes, content_type, extensión)."""
+    from PIL import Image
+    import io
+
+    img = Image.open(file_storage.stream)
+    img = img.convert("RGB")  # unifica todo a JPEG (sin canal de transparencia)
+    img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality, optimize=True)
+    buf.seek(0)
+    return buf.read(), "image/jpeg", "jpg"
+
+
+def _save_uploaded_bytes(rel_path, data, content_type="application/octet-stream"):
+    """Como _save_uploaded_file, pero recibe bytes ya listos en vez de un
+    FileStorage (para guardar una imagen ya redimensionada/comprimida)."""
+    if USE_POSTGRES:
+        db = get_db()
+        db.execute(
+            """INSERT INTO file_blobs (id, data, content_type, created_at) VALUES (?, ?, ?, ?)
+               ON CONFLICT (id) DO UPDATE SET data = excluded.data, content_type = excluded.content_type""",
+            (rel_path, psycopg2.Binary(data), content_type, _now()),
+        )
+        db.commit()
+    else:
+        with open(os.path.join(UPLOAD_DIR, rel_path), "wb") as f:
+            f.write(data)
+
+
 def _save_uploaded_file(rel_path, file_storage):
     """Guarda un archivo subido. En PostgreSQL (Render u otro hosting sin disco
     persistente) lo guarda dentro de la base de datos; en SQLite local, en el
@@ -889,9 +922,13 @@ def upload_patient_photo(pid):
     if patient["photo"]:
         _delete_uploaded_file(patient["photo"])
 
-    ext = secure_filename(file.filename).rsplit(".", 1)[1].lower()
+    try:
+        img_bytes, content_type, ext = _resize_and_compress_image(file)
+    except Exception as e:
+        return jsonify({"error": f"No se pudo procesar la imagen: {e}"}), 400
+
     rel_path = f"photos/{pid}_{uuid.uuid4().hex[:8]}.{ext}"
-    _save_uploaded_file(rel_path, file)
+    _save_uploaded_bytes(rel_path, img_bytes, content_type)
     db.execute("UPDATE patients SET photo = ?, updated_at = ? WHERE id = ?", (rel_path, _now(), pid))
     db.commit()
     row = db.execute("SELECT * FROM patients WHERE id = ?", (pid,)).fetchone()
