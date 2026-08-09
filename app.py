@@ -1392,9 +1392,23 @@ def send_email_with_attachment(to_addr, subject, body, file_bytes, file_name):
     part["Content-Disposition"] = f'attachment; filename="{file_name}"'
     msg.attach(part)
 
-    with smtplib.SMTP(host, port, timeout=20) as server:
+    # Render (y otros hostings) a veces no tienen salida por IPv6 aunque el
+    # servidor SMTP sí publique una dirección IPv6 (AAAA). Si dejamos que
+    # smtplib elija automáticamente, puede intentar esa ruta rota y fallar
+    # con "Network is unreachable". Para evitarlo, resolvemos la IPv4 del
+    # host manualmente y nos conectamos directo a esa dirección.
+    import socket
+
+    try:
+        ipv4_addr = socket.getaddrinfo(host, port, socket.AF_INET)[0][4][0]
+    except Exception:
+        ipv4_addr = host  # si falla la resolución manual, dejamos que smtplib lo intente igual
+
+    with smtplib.SMTP(ipv4_addr, port, timeout=20) as server:
+        server.ehlo(host)
         if use_tls:
             server.starttls()
+            server.ehlo(host)
         server.login(user, password)
         server.sendmail(user, [to_addr], msg.as_string())
 
