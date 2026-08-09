@@ -1399,6 +1399,28 @@ def send_email_with_attachment(to_addr, subject, body, file_bytes, file_name):
         server.sendmail(user, [to_addr], msg.as_string())
 
 
+@app.route("/api/cron/email-backup", methods=["GET", "POST"])
+def cron_email_backup():
+    """Dispara el respaldo por correo desde afuera (sin necesitar sesión
+    iniciada) — pensado para un servicio externo de cron (ej. cron-job.org)
+    que visite esta URL una vez al día. Esto también sirve para 'despertar'
+    la app en el plan gratuito de Render, donde el hilo interno no es
+    confiable porque el servicio se duerme sin visitas.
+
+    Protegido con una clave secreta: hay que definir la variable de entorno
+    BACKUP_CRON_SECRET en Render (Environment) y visitar:
+        https://tu-app.onrender.com/api/cron/email-backup?key=TU_CLAVE
+    """
+    expected = os.environ.get("BACKUP_CRON_SECRET", "").strip()
+    provided = request.args.get("key") or request.headers.get("X-Backup-Key", "")
+    if not expected or provided != expected:
+        return jsonify({"error": "No autorizado."}), 401
+    ok = do_email_backup()
+    if ok:
+        return jsonify({"ok": True, "message": "Respaldo enviado por correo."})
+    return jsonify({"ok": False, "message": "No se pudo enviar (revisa los logs)."}), 500
+
+
 def do_email_backup():
     """Genera el respaldo completo y lo envía por correo a la cuenta de la
     clínica configurada en Configuración → Correo. A diferencia de
