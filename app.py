@@ -1723,7 +1723,32 @@ def generate_backup_payload(db):
             for b in blobs
         ]
     else:
-        data["files"] = []  # en SQLite local, los archivos ya viven en la carpeta uploads/
+        # En SQLite local, los archivos viven como archivos sueltos dentro
+        # de uploads/. Los incluimos igual en el respaldo (leyéndolos de
+        # disco) para que este mismo .json sirva para restaurar fotos y
+        # documentos también al importarlo en la versión en línea
+        # (PostgreSQL/Neon), y no solo al revés.
+        data["files"] = []
+        for root, _dirs, filenames in os.walk(UPLOAD_DIR):
+            for fname in filenames:
+                full_path = os.path.join(root, fname)
+                rel_path = os.path.relpath(full_path, UPLOAD_DIR).replace(os.sep, "/")
+                try:
+                    with open(full_path, "rb") as fh:
+                        raw = fh.read()
+                except OSError:
+                    continue
+                ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+                content_type = {
+                    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                    "webp": "image/webp", "gif": "image/gif", "pdf": "application/pdf",
+                }.get(ext, "application/octet-stream")
+                data["files"].append({
+                    "id": rel_path,
+                    "contentType": content_type,
+                    "createdAt": datetime.fromtimestamp(os.path.getmtime(full_path)).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "dataBase64": base64.b64encode(raw).decode("ascii"),
+                })
 
     return json_lib.dumps(data, default=str).encode("utf-8")
 
@@ -1779,12 +1804,14 @@ def import_full_backup():
             placeholders = ", ".join(["?"] * len(cols))
             db.execute(f"INSERT INTO {table} ({cols_sql}) VALUES ({placeholders})", tuple(row[c] for c in cols))
 
-    if USE_POSTGRES:
-        for f in data.get("files", []):
-            db.execute(
-                "INSERT INTO file_blobs (id, data, content_type, created_at) VALUES (?, ?, ?, ?)",
-                (f["id"], psycopg2.Binary(base64.b64decode(f["dataBase64"])), f["contentType"], f["createdAt"]),
-            )
+    # Restaura los archivos (fotos, documentos) sin importar si el respaldo
+    # viene de PostgreSQL/Neon y se importa en SQLite local, o al revés —
+    # _save_uploaded_bytes ya sabe guardar en el lugar correcto según
+    # dónde se esté ejecutando esta importación.
+    for f in data.get("files", []):
+        rel_path = f["id"]
+        content = base64.b64decode(f["dataBase64"])
+        _save_uploaded_bytes(rel_path, content, f.get("contentType", "application/octet-stream"))
 
     db.commit()
     session.clear()
