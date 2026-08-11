@@ -789,7 +789,9 @@ def forgot_password():
 
         if step == "username":
             username = request.form.get("username", "").strip()
-            user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            user = db.execute(
+                "SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username,)
+            ).fetchone()
             if user and (user["security_question"] or ""):
                 question = user["security_question"]
                 username_for_step2 = username
@@ -805,7 +807,9 @@ def forgot_password():
             username = request.form.get("username", "").strip()
             answer = request.form.get("answer", "").strip().lower()
             new_password = request.form.get("new_password", "").strip()
-            user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            user = db.execute(
+                "SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username,)
+            ).fetchone()
             valid = (
                 user
                 and (user["security_answer_hash"] or "")
