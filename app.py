@@ -733,42 +733,54 @@ _SECURITY_QUESTION_HTML = """
 def _send_recovery_email(user, username):
     """Genera una contraseña temporal y la manda por correo (Brevo). Usado
     como respaldo cuando el usuario no configuró una pregunta de
-    seguridad. Devuelve el mensaje a mostrar en pantalla."""
+    seguridad. Devuelve el mensaje a mostrar en pantalla.
+
+    IMPORTANTE: solo cambia la contraseña en la base de datos DESPUÉS de
+    confirmar que el correo se envió con éxito — así nunca se queda un
+    usuario con una contraseña nueva que nunca le llegó."""
     db = get_db()
     rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
     recovery_email = rows.get("smtp_user", "")
-    message = (
-        "Si el usuario existe, se envió una contraseña temporal al correo "
-        "de la clínica configurado. Revisa también la carpeta de spam."
-    )
-    if recovery_email:
-        import secrets
-
-        new_password = secrets.token_urlsafe(9)
-        db.execute(
-            "UPDATE users SET password_hash = ? WHERE id = ?",
-            (generate_password_hash(new_password), user["id"]),
-        )
-        db.commit()
-        try:
-            send_email_with_attachment(
-                recovery_email,
-                f"Contraseña temporal - usuario {username}",
-                f"Se solicitó restablecer la contraseña del usuario '{username}'.\n\n"
-                f"Tu contraseña temporal es:\n\n{new_password}\n\n"
-                "Inicia sesión con ella y cámbiala de inmediato desde tu perfil.\n\n"
-                "Si tú no solicitaste este cambio, revisa quién tiene acceso a tu "
-                "sistema — alguien más pudo haberlo pedido.",
-            )
-        except Exception as e:
-            print(f"[recuperar contraseña] Error al enviar: {e}", flush=True)
-    else:
-        message = (
+    if not recovery_email:
+        return (
             "No hay una pregunta de seguridad configurada para este usuario, ni "
             "un correo de recuperación configurado. Pide ayuda a quien administra "
             "el sistema, o usa el script de recuperación directa en la computadora."
         )
-    return message
+
+    import secrets
+
+    new_password = secrets.token_urlsafe(9)
+    try:
+        send_email_with_attachment(
+            recovery_email,
+            f"Contraseña temporal - usuario {username}",
+            f"Se solicitó restablecer la contraseña del usuario '{username}'.\n\n"
+            f"Tu contraseña temporal es:\n\n{new_password}\n\n"
+            "Inicia sesión con ella y cámbiala de inmediato desde tu perfil.\n\n"
+            "Si tú no solicitaste este cambio, revisa quién tiene acceso a tu "
+            "sistema — alguien más pudo haberlo pedido.",
+        )
+    except Exception as e:
+        print(f"[recuperar contraseña] Error al enviar: {e}", flush=True)
+        return (
+            "No se pudo enviar el correo de recuperación en este momento "
+            "(el servicio de correo puede no estar disponible todavía). Tu "
+            "contraseña actual sigue siendo válida — no se hizo ningún cambio. "
+            "Intenta de nuevo más tarde, o pide ayuda a quien administra el sistema."
+        )
+
+    # Solo llegamos aquí si el correo se mandó sin errores — ahora sí
+    # actualizamos la contraseña.
+    db.execute(
+        "UPDATE users SET password_hash = ? WHERE id = ?",
+        (generate_password_hash(new_password), user["id"]),
+    )
+    db.commit()
+    return (
+        "Se envió una contraseña temporal al correo de la clínica configurado. "
+        "Revisa también la carpeta de spam."
+    )
 
 
 @app.route("/forgot-password", methods=["GET", "POST"])
