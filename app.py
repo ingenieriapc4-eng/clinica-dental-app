@@ -29,7 +29,8 @@ from email.mime.text import MIMEText
 from functools import wraps
 
 from flask import (Flask, Response, g, jsonify, redirect, render_template,
-                    request, send_from_directory, session, url_for)
+                    render_template_string, request, send_from_directory,
+                    session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -360,6 +361,10 @@ def init_db():
         db.execute("ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT ''")
     if not _column_exists(db, "users", "display_name"):
         db.execute("ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''")
+    if not _column_exists(db, "users", "security_question"):
+        db.execute("ALTER TABLE users ADD COLUMN security_question TEXT DEFAULT ''")
+    if not _column_exists(db, "users", "security_answer_hash"):
+        db.execute("ALTER TABLE users ADD COLUMN security_answer_hash TEXT DEFAULT ''")
 
     for k, v in DEFAULT_SETTINGS.items():
         db.execute(_insert_ignore("settings", ["key", "value"]), (k, v))
@@ -618,6 +623,241 @@ def setup():
             db.commit()
             return redirect(url_for("login"))
     return render_template("setup.html", error=error)
+
+
+_FORGOT_PASSWORD_HTML = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recuperar contraseña · Clínica Dental</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#FAF8F4;--ink:#1E2A28;--primary:#2F6F62;--primary-dark:#204E45;--accent:#E1734F;--accent-dark:#C85E3B;--border:#DFE5E1;--muted:#7C8B87;--danger:#C0463C;--danger-light:#FBEAE8;--ok-light:#E7F3EE;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--primary-dark);font-family:'Inter',sans-serif;color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .card{background:#fff;border-radius:20px;padding:34px 32px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.25);}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:20px;margin:0 0 4px 0;}
+  p.sub{color:var(--muted);font-size:13px;margin:0 0 22px 0;}
+  label{display:block;font-size:12px;font-weight:600;color:var(--primary-dark);margin-bottom:5px;}
+  input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:14px;font-size:14px;margin-bottom:14px;}
+  input:focus{outline:none;border-color:var(--primary);}
+  button{width:100%;background:var(--accent);color:#fff;border:none;border-radius:14px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;}
+  button:hover{background:var(--accent-dark);}
+  button.secondary{background:#fff;color:var(--primary-dark);border:1px solid var(--border);}
+  button.secondary:hover{background:var(--bg);}
+  .msg{font-size:12.5px;padding:9px 12px;border-radius:12px;margin-bottom:14px;}
+  .ok{background:var(--ok-light);color:var(--primary-dark);}
+  .question-box{background:var(--bg);border-radius:14px;padding:12px 14px;margin-bottom:14px;font-size:13px;}
+  a.back{display:block;text-align:center;margin-top:4px;color:var(--primary);font-size:12.5px;text-decoration:none;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔑 Recuperar contraseña</h1>
+    {% if message %}<div class="msg ok">{{ message }}</div>{% endif %}
+
+    {% if question %}
+      <p class="sub">Responde tu pregunta de seguridad para elegir una contraseña nueva. No necesitas internet para este paso.</p>
+      <form method="POST">
+        <input type="hidden" name="step" value="answer">
+        <input type="hidden" name="username" value="{{ username_for_step2 }}">
+        <div class="question-box"><strong>{{ question }}</strong></div>
+        <label for="answer">Tu respuesta</label>
+        <input type="text" id="answer" name="answer" required autofocus>
+        <label for="new_password">Nueva contraseña</label>
+        <input type="password" id="new_password" name="new_password" required minlength="4">
+        <button type="submit">Cambiar contraseña</button>
+      </form>
+    {% else %}
+      <p class="sub">Escribe tu usuario. Si tienes una pregunta de seguridad configurada, la usaremos aquí mismo (sin internet). Si no, se enviará una contraseña temporal por correo.</p>
+      <form method="POST">
+        <input type="hidden" name="step" value="username">
+        <label for="username">Usuario</label>
+        <input type="text" id="username" name="username" required autofocus>
+        <button type="submit">Continuar</button>
+      </form>
+    {% endif %}
+    <a class="back" href="/login">&larr; Volver a iniciar sesión</a>
+  </div>
+</body>
+</html>
+"""
+
+_SECURITY_QUESTION_HTML = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pregunta de seguridad · Clínica Dental</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#FAF8F4;--ink:#1E2A28;--primary:#2F6F62;--primary-dark:#204E45;--accent:#E1734F;--accent-dark:#C85E3B;--border:#DFE5E1;--muted:#7C8B87;--ok-light:#E7F3EE;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:'Inter',sans-serif;color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .card{background:#fff;border-radius:20px;padding:34px 32px;width:100%;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,0.12);}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:20px;margin:0 0 4px 0;}
+  p.sub{color:var(--muted);font-size:13px;margin:0 0 22px 0;}
+  label{display:block;font-size:12px;font-weight:600;color:var(--primary-dark);margin-bottom:5px;}
+  input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:14px;font-size:14px;margin-bottom:14px;}
+  input:focus{outline:none;border-color:var(--primary);}
+  button{width:100%;background:var(--accent);color:#fff;border:none;border-radius:14px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;}
+  button:hover{background:var(--accent-dark);}
+  .msg{font-size:12.5px;padding:9px 12px;border-radius:12px;margin-bottom:14px;background:var(--ok-light);color:var(--primary-dark);}
+  a.back{display:block;text-align:center;margin-top:14px;color:var(--primary);font-size:12.5px;text-decoration:none;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🛡️ Tu pregunta de seguridad</h1>
+    <p class="sub">Se usa para recuperar tu contraseña sin necesitar internet ni correo. Elige una pregunta que solo tú sepas responder, y no la olvides.</p>
+    {% if message %}<div class="msg">{{ message }}</div>{% endif %}
+    <form method="POST">
+      <label for="security_question">Pregunta</label>
+      <input type="text" id="security_question" name="security_question" placeholder="Ej. ¿Nombre de mi primera mascota?" value="{{ current_question }}" required>
+      <label for="security_answer">Respuesta</label>
+      <input type="text" id="security_answer" name="security_answer" placeholder="Escribe la respuesta (no distingue mayúsculas)" required>
+      <label for="current_password">Tu contraseña actual (para confirmar que eres tú)</label>
+      <input type="password" id="current_password" name="current_password" required>
+      <button type="submit">Guardar pregunta de seguridad</button>
+    </form>
+    <a class="back" href="/">&larr; Volver a la app</a>
+  </div>
+</body>
+</html>
+"""
+
+
+def _send_recovery_email(user, username):
+    """Genera una contraseña temporal y la manda por correo (Brevo). Usado
+    como respaldo cuando el usuario no configuró una pregunta de
+    seguridad. Devuelve el mensaje a mostrar en pantalla."""
+    db = get_db()
+    rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
+    recovery_email = rows.get("smtp_user", "")
+    message = (
+        "Si el usuario existe, se envió una contraseña temporal al correo "
+        "de la clínica configurado. Revisa también la carpeta de spam."
+    )
+    if recovery_email:
+        import secrets
+
+        new_password = secrets.token_urlsafe(9)
+        db.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (generate_password_hash(new_password), user["id"]),
+        )
+        db.commit()
+        try:
+            send_email_with_attachment(
+                recovery_email,
+                f"Contraseña temporal - usuario {username}",
+                f"Se solicitó restablecer la contraseña del usuario '{username}'.\n\n"
+                f"Tu contraseña temporal es:\n\n{new_password}\n\n"
+                "Inicia sesión con ella y cámbiala de inmediato desde tu perfil.\n\n"
+                "Si tú no solicitaste este cambio, revisa quién tiene acceso a tu "
+                "sistema — alguien más pudo haberlo pedido.",
+            )
+        except Exception as e:
+            print(f"[recuperar contraseña] Error al enviar: {e}", flush=True)
+    else:
+        message = (
+            "No hay una pregunta de seguridad configurada para este usuario, ni "
+            "un correo de recuperación configurado. Pide ayuda a quien administra "
+            "el sistema, o usa el script de recuperación directa en la computadora."
+        )
+    return message
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    """Dos formas de recuperar la contraseña:
+    1. Pregunta de seguridad — funciona sin internet (ideal para la copia local).
+    2. Correo con contraseña temporal vía Brevo — necesita internet, se usa
+       como respaldo si el usuario no configuró una pregunta de seguridad.
+    Nunca revela si un usuario existe o no, para no dar pistas a terceros.
+    """
+    message = None
+    question = None
+    username_for_step2 = None
+
+    if request.method == "POST":
+        step = request.form.get("step", "username")
+        db = get_db()
+
+        if step == "username":
+            username = request.form.get("username", "").strip()
+            user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            if user and (user["security_question"] or ""):
+                question = user["security_question"]
+                username_for_step2 = username
+            elif user:
+                message = _send_recovery_email(user, username)
+            else:
+                message = (
+                    "Si el usuario existe, se mostrará su pregunta de seguridad o se "
+                    "enviará una contraseña temporal por correo."
+                )
+
+        elif step == "answer":
+            username = request.form.get("username", "").strip()
+            answer = request.form.get("answer", "").strip().lower()
+            new_password = request.form.get("new_password", "").strip()
+            user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            valid = (
+                user
+                and (user["security_answer_hash"] or "")
+                and check_password_hash(user["security_answer_hash"], answer)
+            )
+            if valid and len(new_password) >= 4:
+                db.execute(
+                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                    (generate_password_hash(new_password), user["id"]),
+                )
+                db.commit()
+                message = "Contraseña actualizada correctamente. Ya puedes iniciar sesión."
+            else:
+                message = "Respuesta incorrecta o contraseña muy corta (mínimo 4 caracteres). Intenta de nuevo."
+                if user:
+                    question = user["security_question"]
+                    username_for_step2 = username
+
+    return render_template_string(
+        _FORGOT_PASSWORD_HTML, message=message, question=question, username_for_step2=username_for_step2
+    )
+
+
+@app.route("/account/security-question", methods=["GET", "POST"])
+@login_required
+def account_security_question():
+    """Permite a un usuario ya conectado configurar (o cambiar) su pregunta
+    de seguridad, para poder recuperar su contraseña más adelante sin
+    depender de internet ni correo."""
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE username = ?", (session.get("username"),)).fetchone()
+    message = None
+    if request.method == "POST":
+        current_password = request.form.get("current_password", "")
+        if not user or not check_password_hash(user["password_hash"], current_password):
+            message = "Contraseña actual incorrecta. No se guardaron los cambios."
+        else:
+            question = request.form.get("security_question", "").strip()[:200]
+            answer = request.form.get("security_answer", "").strip().lower()[:200]
+            if not question or not answer:
+                message = "Completa la pregunta y la respuesta."
+            else:
+                db.execute(
+                    "UPDATE users SET security_question = ?, security_answer_hash = ? WHERE id = ?",
+                    (question, generate_password_hash(answer), user["id"]),
+                )
+                db.commit()
+                message = "Pregunta de seguridad guardada correctamente."
+                user = db.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
+    return render_template_string(
+        _SECURITY_QUESTION_HTML, message=message, current_question=(user["security_question"] if user else "")
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1419,16 +1659,18 @@ def receive_backup():
     return jsonify({"ok": True})
 
 
-def send_email_with_attachment(to_addr, subject, body, file_bytes, file_name):
-    """Envía un correo con adjunto usando la API de Brevo (HTTPS), en vez de
-    SMTP directo. Render bloquea las conexiones salientes a los puertos SMTP
-    (25, 465, 587) en el plan gratuito, así que usar SMTP directo (Gmail,
-    etc.) no funciona ahí. La API de Brevo viaja por HTTPS normal, que sí
-    está permitido.
+def send_email_with_attachment(to_addr, subject, body, file_bytes=None, file_name=None):
+    """Envía un correo (con o sin adjunto) usando la API de Brevo (HTTPS), en
+    vez de SMTP directo. Render bloquea las conexiones salientes a los
+    puertos SMTP (25, 465, 587) en el plan gratuito, así que usar SMTP
+    directo (Gmail, etc.) no funciona ahí. La API de Brevo viaja por HTTPS
+    normal, que sí está permitido.
 
     Requiere la variable de entorno BREVO_API_KEY configurada en Render, y
     un remitente verificado en Brevo (Senders). El correo de "para" y el
     nombre del remitente se siguen tomando de Configuración → Correo.
+    file_bytes/file_name son opcionales — si no se pasan, se manda un
+    correo de solo texto (ej. recuperación de contraseña).
     """
     import base64
     import json as json_lib
@@ -1451,13 +1693,14 @@ def send_email_with_attachment(to_addr, subject, body, file_bytes, file_name):
         "to": [{"email": to_addr}],
         "subject": subject,
         "textContent": body,
-        "attachment": [
+    }
+    if file_bytes is not None:
+        payload["attachment"] = [
             {
                 "content": base64.b64encode(file_bytes).decode("ascii"),
                 "name": file_name,
             }
-        ],
-    }
+        ]
 
     req = urllib.request.Request(
         "https://api.brevo.com/v3/smtp/email",
