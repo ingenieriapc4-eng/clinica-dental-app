@@ -1499,6 +1499,30 @@ def cron_email_backup():
     return jsonify({"ok": False, "message": f"No se pudo enviar: {detalle}"}), 500
 
 
+@app.route("/api/cron/backup-download", methods=["GET"])
+def cron_backup_download():
+    """Descarga el respaldo .json completo, protegido con la misma clave
+    BACKUP_CRON_SECRET (sin necesitar sesión iniciada) — pensado para que
+    un script en tu computadora (ej. una tarea programada de Windows) lo
+    descargue automáticamente a una hora fija, guardándolo directo en tu
+    PC sin que tengas que entrar a la app ni hacer nada manual.
+
+        https://tu-app.onrender.com/api/cron/backup-download?key=TU_CLAVE
+    """
+    expected = os.environ.get("BACKUP_CRON_SECRET", "").strip()
+    provided = request.args.get("key") or request.headers.get("X-Backup-Key", "")
+    if not expected or provided != expected:
+        return jsonify({"error": "No autorizado."}), 401
+    db = get_db()
+    payload = generate_backup_payload(db)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    return Response(
+        payload,
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="respaldo_completo_{stamp}.json"'},
+    )
+
+
 def do_email_backup():
     """Genera el respaldo completo y lo envía por correo a la cuenta de la
     clínica configurada en Configuración → Correo. A diferencia de
