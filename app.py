@@ -1078,12 +1078,18 @@ def delete_patient(pid):
     return jsonify({"ok": True})
 
 
-def _safe_remove(path):
+def _safe_remove(path, base_dir=UPLOAD_DIR):
+    """Borra un archivo, pero solo si está dentro de una carpeta permitida
+    (uploads/ o backups/, según se indique) — por seguridad, para no borrar
+    nada fuera de esas carpetas por accidente."""
     try:
-        if os.path.commonpath([os.path.abspath(path), UPLOAD_DIR]) == UPLOAD_DIR and os.path.exists(path):
+        base_abs = os.path.abspath(base_dir)
+        if os.path.commonpath([os.path.abspath(path), base_abs]) == base_abs and os.path.exists(path):
             os.remove(path)
+            return True
     except (OSError, ValueError):
         pass
+    return False
 
 
 def _resize_and_compress_image(file_storage, max_dimension=800, quality=82):
@@ -1657,7 +1663,7 @@ def receive_backup():
     except Exception as e:
         return jsonify({"error": f"El archivo recibido no es una base de datos válida: {e}"}), 400
     finally:
-        _safe_remove(tmp_path)
+        _safe_remove(tmp_path, BACKUP_DIR)
 
     uploads_file = request.files.get("uploads")
     if uploads_file:
@@ -1669,7 +1675,7 @@ def receive_backup():
         except Exception as e:
             print(f"[sync] No se pudieron aplicar los archivos subidos recibidos: {e}")
         finally:
-            _safe_remove(tmp_zip)
+            _safe_remove(tmp_zip, BACKUP_DIR)
 
     session.clear()
     return jsonify({"ok": True})
@@ -1798,14 +1804,27 @@ def do_email_backup():
             payload = generate_backup_payload(db)
             clinic = rows.get("clinic_name") or "Clínica Dental"
             stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            fname = f"respaldo_completo_{stamp}.json"
+
+            # Brevo no acepta .json como adjunto (solo permite un listado fijo
+            # de extensiones: pdf, txt, zip, docx, csv, etc.), así que lo
+            # comprimimos en un .zip — adentro sigue siendo el mismo .json.
+            import io
+
+            json_name = f"respaldo_completo_{stamp}.json"
+            zip_buf = io.BytesIO()
+            with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr(json_name, payload)
+            fname = f"respaldo_completo_{stamp}.zip"
+
             send_email_with_attachment(
                 to_addr,
                 f"Respaldo diario - {clinic} - {datetime.now().strftime('%d/%m/%Y')}",
                 "Adjunto el respaldo automático diario de la base de datos de la clínica "
-                "(pacientes, citas, cargos, presupuestos y documentos). Guarda este correo "
-                "o descarga el archivo adjunto en un lugar seguro fuera de Render y Neon.",
-                payload,
+                "(pacientes, citas, cargos, presupuestos y documentos), comprimido en .zip. "
+                "Descomprímelo para obtener el archivo .json — es el mismo que usas para "
+                "Importar respaldo. Guarda este correo o el archivo en un lugar seguro "
+                "fuera de Render y Neon.",
+                zip_buf.getvalue(),
                 fname,
             )
             print(f"[respaldo por correo] Enviado correctamente: {fname}", flush=True)
@@ -2109,10 +2128,11 @@ def delete_backup(filename):
     target = os.path.join(BACKUP_DIR, safe)
     if not os.path.exists(target):
         return jsonify({"error": "Respaldo no encontrado."}), 404
-    _safe_remove(target)
+    if not _safe_remove(target, BACKUP_DIR):
+        return jsonify({"error": "No se pudo eliminar el archivo (puede estar en uso)."}), 500
     if safe.startswith("clinica_") and safe.endswith(".db"):
         stamp = safe[len("clinica_"):-len(".db")]
-        _safe_remove(os.path.join(BACKUP_DIR, f"uploads_{stamp}.zip"))
+        _safe_remove(os.path.join(BACKUP_DIR, f"uploads_{stamp}.zip"), BACKUP_DIR)
     return jsonify({"ok": True})
 
 
