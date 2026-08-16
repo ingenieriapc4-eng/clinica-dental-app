@@ -220,6 +220,7 @@ EMAIL_SETTINGS = {
 
 SYNC_SETTINGS = {
     "sync_remote_url": "",
+    "sync_cron_secret": "",
     "sync_remote_username": "",
     "sync_remote_password": "",
 }
@@ -1557,8 +1558,7 @@ def get_sync_settings():
     rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
     return jsonify({
         "sync_remote_url": rows.get("sync_remote_url", ""),
-        "sync_remote_username": rows.get("sync_remote_username", ""),
-        "hasPassword": bool(rows.get("sync_remote_password")),
+        "sync_cron_secret": rows.get("sync_cron_secret", ""),
     })
 
 
@@ -1570,9 +1570,8 @@ def update_sync_settings():
     db = get_db()
     url = _clean(data.get("sync_remote_url")).rstrip("/")
     db.execute("UPDATE settings SET value = ? WHERE key = 'sync_remote_url'", (url[:300],))
-    db.execute("UPDATE settings SET value = ? WHERE key = 'sync_remote_username'", (_clean(data.get("sync_remote_username"))[:200],))
-    if data.get("sync_remote_password"):
-        db.execute("UPDATE settings SET value = ? WHERE key = 'sync_remote_password'", (data["sync_remote_password"],))
+    secret = _clean(data.get("sync_cron_secret", ""))
+    db.execute("UPDATE settings SET value = ? WHERE key = 'sync_cron_secret'", (secret[:200],))
     db.commit()
     return get_sync_settings()
 
@@ -1637,6 +1636,73 @@ def push_to_remote():
         return jsonify({"error": f"Tu versión en línea rechazó el envío. {detail}".strip()}), 502
 
     return jsonify({"ok": True, "message": "Tu versión en línea ya quedó actualizada con los datos de esta PC."})
+
+
+@app.route("/api/sync/pull-from-cloud", methods=["POST"])
+@login_required
+@admin_required
+def pull_from_cloud():
+    """Descarga el respaldo .json completo desde la app en línea (usando el
+    mismo endpoint protegido con BACKUP_CRON_SECRET que usa cron-job.org) y
+    lo importa directamente en esta copia local, reemplazando todos los datos
+    actuales. Solo disponible en modo SQLite (copia local), no en la versión
+    en línea misma.
+
+    Requiere que estén configurados en Configuración:
+    - sync_remote_url: URL base de tu app en línea (ej. https://clinica-dental-app-p6oj.onrender.com)
+    - sync_cron_secret: la misma clave que BACKUP_CRON_SECRET en Render
+    """
+    if USE_POSTGRES:
+        return jsonify({"error": "Esta función solo está disponible en la copia local, no en la versión en línea."}), 400
+
+    import urllib.error
+    import urllib.request
+    import json as json_lib
+    import base64
+
+    db = get_db()
+    rows = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM settings").fetchall()}
+    remote_url = rows.get("sync_remote_url", "").rstrip("/")
+    cron_secret = rows.get("sync_cron_secret", "").strip()
+
+    if not remote_url:
+        return jsonify({"error": "Falta configurar la URL de tu app en línea en Configuración → Sincronización."}), 400
+    if not cron_secret:
+        return jsonify({"error": "Falta configurar la clave secreta (BACKUP_CRON_SECRET) en Configuración → Sincronización."}), 400
+
+    url = f"{remote_url}/api/cron/backup-download?key={cron_secret}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "ClinicaLocal/1.0"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            raw = resp.read()
+    except urllib.error.HTTPError as e:
+        return jsonify({"error": f"La app en línea rechazó la petición ({e.code}). Revisa la URL y la clave secreta."}), 400
+    except Exception as e:
+        return jsonify({"error": f"No se pudo conectar con la app en línea: {e}"}), 500
+
+    try:
+        data = json_lib.loads(raw)
+    except Exception:
+        return jsonify({"error": "La respuesta de la app en línea no es un archivo .json válido."}), 500
+
+    # Reusar la misma lógica de importación que ya tiene la app
+    try:
+        for table in reversed(EXPORT_TABLES):
+            db.execute(f"DELETE FROM {table}")
+        for table in EXPORT_TABLES:
+            for row in data.get("tables", {}).get(table, []):
+                cols = ", ".join(row.keys())
+                placeholders = ", ".join(["?"] * len(row))
+                db.execute(f"INSERT OR REPLACE INTO {table} ({cols}) VALUES ({placeholders})", list(row.values()))
+        for f in data.get("files", []):
+            rel_path = f["id"]
+            content = base64.b64decode(f["dataBase64"])
+            _save_uploaded_bytes(rel_path, content, f.get("contentType", "application/octet-stream"))
+        db.commit()
+    except Exception as e:
+        return jsonify({"error": f"Error al importar los datos: {e}"}), 500
+
+    return jsonify({"ok": True, "message": "¡Listo! Tu copia local ya quedó actualizada con los datos de la app en línea."})
 
 
 @app.route("/api/sync/receive-backup", methods=["POST"])

@@ -721,16 +721,13 @@
           </div>
         </div>
         <div class="settings-card" id="cfg-sync-card" style="grid-column:1/-1;display:none;">
-          <h3>Sincronización con tu versión en línea</h3>
-          <p class="sub" style="margin-bottom:14px;">Envía tu información más reciente de esta PC a tu versión en línea (por ejemplo, en PythonAnywhere), para consultarla remotamente. Esto <strong>reemplaza</strong> los datos de la versión en línea con los de esta PC — úsalo solo cuando esta computadora tenga la información más al día.</p>
-          <div class="field"><label>URL de tu versión en línea</label><input type="text" id="cfg-sync-url" placeholder="https://tuclinica.pythonanywhere.com"></div>
-          <div class="field-row">
-            <div class="field"><label>Usuario administrador (de esa versión)</label><input type="text" id="cfg-sync-user"></div>
-            <div class="field"><label id="cfg-sync-pw-label">Contraseña</label><input type="password" id="cfg-sync-password"></div>
-          </div>
+          <h3>⬇ Actualizar desde la versión en línea</h3>
+          <p class="sub" style="margin-bottom:14px;">Descarga los datos más recientes de tu app en línea (Render + Neon) y los importa aquí en tu copia local. Útil para tener tu copia local al día sin hacer nada manual. <strong>Reemplaza todos los datos locales actuales</strong> con los de la nube — úsalo solo cuando la versión en línea tenga la información más reciente.</p>
+          <div class="field"><label>URL de tu app en línea</label><input type="text" id="cfg-sync-url" placeholder="https://clinica-dental-app-p6oj.onrender.com"></div>
+          <div class="field"><label>Clave secreta (BACKUP_CRON_SECRET de Render)</label><input type="password" id="cfg-sync-key" placeholder="La misma clave que configuraste en Render → Environment"></div>
           <div class="modal-actions" style="justify-content:flex-start;gap:10px;">
-            <button class="btn btn-ghost btn-sm" id="cfg-sync-save">Guardar datos de conexión</button>
-            <button class="btn btn-primary btn-sm" id="btn-sync-push">⬆ Subir a mi versión en línea</button>
+            <button class="btn btn-ghost btn-sm" id="cfg-sync-save">Guardar configuración</button>
+            <button class="btn btn-primary btn-sm" id="btn-sync-pull">⬇ Actualizar desde la nube ahora</button>
           </div>
           <p class="sub" id="sync-status" style="margin-top:10px;"></p>
         </div>
@@ -2531,20 +2528,15 @@
     try{
       const s = await api('/api/settings/sync');
       $('#cfg-sync-url').value = s.sync_remote_url || '';
-      $('#cfg-sync-user').value = s.sync_remote_username || '';
-      $('#cfg-sync-password').value = '';
-      $('#cfg-sync-password').placeholder = s.hasPassword ? '•••••••• (ya configurada, escribe para cambiarla)' : '';
-      $('#cfg-sync-pw-label').textContent = s.hasPassword ? 'Nueva contraseña (dejar en blanco para no cambiarla)' : 'Contraseña';
+      if($('#cfg-sync-key')) $('#cfg-sync-key').value = s.sync_cron_secret || '';
     }catch(err){ toast(err.message); }
   }
 
   $('#cfg-sync-save').addEventListener('click', async ()=>{
     const payload = {
       sync_remote_url: $('#cfg-sync-url').value.trim(),
-      sync_remote_username: $('#cfg-sync-user').value.trim(),
+      sync_cron_secret: $('#cfg-sync-key') ? $('#cfg-sync-key').value.trim() : '',
     };
-    const pw = $('#cfg-sync-password').value;
-    if(pw) payload.sync_remote_password = pw;
     try{
       await api('/api/settings/sync', {method:'POST', body: JSON.stringify(payload)});
       toast('Datos de conexión guardados');
@@ -2552,22 +2544,50 @@
     }catch(err){ toast(err.message); }
   });
 
-  $('#btn-sync-push').addEventListener('click', async ()=>{
-    if(!confirm('Esto va a reemplazar los datos de tu versión en línea con los de esta PC. ¿Continuar?')) return;
-    const btn = $('#btn-sync-push');
-    const statusEl = $('#sync-status');
-    btn.disabled = true; btn.textContent = 'Enviando…';
-    statusEl.textContent = 'Generando respaldo y enviándolo, esto puede tardar un momento…';
-    try{
-      const res = await api('/api/sync/push', {method:'POST'});
-      statusEl.textContent = '✅ ' + (res.message || 'Actualizado correctamente.');
-      toast('Versión en línea actualizada');
-    }catch(err){
-      statusEl.textContent = '❌ ' + err.message;
-      toast(err.message);
-    }
-    btn.disabled = false; btn.textContent = '⬆ Subir a mi versión en línea';
-  });
+  if($('#btn-sync-pull')){
+    $('#btn-sync-pull').addEventListener('click', async ()=>{
+      const url = $('#cfg-sync-url').value.trim();
+      const key = $('#cfg-sync-key') ? $('#cfg-sync-key').value.trim() : '';
+      if(!url || !key){
+        toast('Primero configura la URL y la clave secreta, y guárdalas.');
+        return;
+      }
+      if(!confirm('Esto va a reemplazar TODOS los datos locales con los de la app en línea. ¿Continuar?')) return;
+      const btn = $('#btn-sync-pull');
+      const statusEl = $('#sync-status');
+      btn.disabled = true; btn.textContent = 'Descargando…';
+      statusEl.textContent = 'Conectando con la app en línea, esto puede tardar un momento si estaba dormida…';
+      try{
+        const res = await api('/api/sync/pull-from-cloud', {method:'POST'});
+        statusEl.textContent = '✅ ' + (res.message || 'Actualizado correctamente.');
+        toast('Copia local actualizada desde la nube');
+        setTimeout(()=>{ location.reload(); }, 1500);
+      }catch(err){
+        statusEl.textContent = '❌ ' + err.message;
+        toast(err.message);
+      }
+      btn.disabled = false; btn.textContent = '⬇ Actualizar desde la nube ahora';
+    });
+  }
+
+  if($('#btn-sync-push')){
+    $('#btn-sync-push').addEventListener('click', async ()=>{
+      if(!confirm('Esto va a reemplazar los datos de tu versión en línea con los de esta PC. ¿Continuar?')) return;
+      const btn = $('#btn-sync-push');
+      const statusEl = $('#sync-status');
+      btn.disabled = true; btn.textContent = 'Enviando…';
+      statusEl.textContent = 'Generando respaldo y enviándolo, esto puede tardar un momento…';
+      try{
+        const res = await api('/api/sync/push', {method:'POST'});
+        statusEl.textContent = '✅ ' + (res.message || 'Actualizado correctamente.');
+        toast('Versión en línea actualizada');
+      }catch(err){
+        statusEl.textContent = '❌ ' + err.message;
+        toast(err.message);
+      }
+      btn.disabled = false; btn.textContent = '⬆ Subir a mi versión en línea';
+    });
+  }
 
   loadData();
 })();
