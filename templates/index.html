@@ -721,13 +721,14 @@
           </div>
         </div>
         <div class="settings-card" id="cfg-sync-card" style="grid-column:1/-1;display:none;">
-          <h3>⬇ Actualizar desde la versión en línea</h3>
-          <p class="sub" style="margin-bottom:14px;">Descarga los datos más recientes de tu app en línea (Render + Neon) y los importa aquí en tu copia local. Útil para tener tu copia local al día sin hacer nada manual. <strong>Reemplaza todos los datos locales actuales</strong> con los de la nube — úsalo solo cuando la versión en línea tenga la información más reciente.</p>
+          <h3>↕ Sincronización con la versión en línea</h3>
+          <p class="sub" style="margin-bottom:14px;">Sincroniza los datos entre tu copia local y tu app en línea (Render + Neon). <strong>Cualquiera de las dos direcciones reemplaza todos los datos del destino</strong> — úsalo solo cuando el origen tenga la información más reciente.</p>
           <div class="field"><label>URL de tu app en línea</label><input type="text" id="cfg-sync-url" placeholder="https://clinica-dental-app-p6oj.onrender.com"></div>
           <div class="field"><label>Clave secreta (BACKUP_CRON_SECRET de Render)</label><input type="password" id="cfg-sync-key" placeholder="La misma clave que configuraste en Render → Environment"></div>
-          <div class="modal-actions" style="justify-content:flex-start;gap:10px;">
+          <div class="modal-actions" style="justify-content:flex-start;gap:10px;flex-wrap:wrap;">
             <button class="btn btn-ghost btn-sm" id="cfg-sync-save">Guardar configuración</button>
-            <button class="btn btn-primary btn-sm" id="btn-sync-pull">⬇ Actualizar desde la nube ahora</button>
+            <button class="btn btn-primary btn-sm" id="btn-sync-pull">⬇ Nube → Local (actualizar esta PC)</button>
+            <button class="btn btn-ghost btn-sm" id="btn-sync-push">⬆ Local → Nube (subir a Render)</button>
           </div>
           <p class="sub" id="sync-status" style="margin-top:10px;"></p>
         </div>
