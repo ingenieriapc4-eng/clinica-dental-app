@@ -448,6 +448,9 @@
       <a href="#" id="btn-change-pw" style="color:#B7CFC6;">Cambiar contraseña</a> ·
       <a href="/account/security-question" style="color:#B7CFC6;">Pregunta de seguridad</a> ·
       <a href="/logout" style="color:#B7CFC6;">Cerrar sesión</a>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(234,243,239,0.14);font-size:10px;">
+        <a href="#" id="btn-disclaimer" style="color:#7FA396;text-decoration:underline;">Términos y condiciones</a>
+      </div>
     </div>
   </aside>
 
@@ -970,6 +973,27 @@
         <button type="submit" class="btn btn-primary">Actualizar</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal: Aviso legal -->
+<div class="overlay" id="modal-disclaimer">
+  <div class="modal" style="max-width:520px;">
+    <button class="close-x" data-close>✕</button>
+    <h3>Términos y Condiciones</h3>
+    <div class="modal-sub" style="max-height:60vh;overflow-y:auto;text-align:left;line-height:1.5;">
+      <p>Los datos registrados en este sistema se usan exclusivamente para fines administrativos del consultorio. Uso interno y confidencial.</p>
+      <p>Este sistema ha sido desarrollado como herramienta de apoyo administrativo para la gestión de citas, expedientes y respaldo de información del consultorio dental. El uso de esta aplicación implica la aceptación de los siguientes términos:</p>
+      <p><strong>1. Uso de la información:</strong> Los datos personales y clínicos registrados en este sistema (nombre, contacto, historial dental, citas, etc.) son utilizados exclusivamente para fines de administración interna del consultorio y no serán compartidos con terceros sin autorización, salvo requerimiento legal.</p>
+      <p><strong>2. Confidencialidad:</strong> El personal autorizado que acceda a este sistema se compromete a mantener la confidencialidad de la información de los pacientes conforme a la ética profesional odontológica.</p>
+      <p><strong>3. Responsabilidad del usuario:</strong> El consultorio es responsable de mantener actualizadas las credenciales de acceso y de restringir el uso del sistema únicamente a personal autorizado.</p>
+      <p><strong>4. Respaldo de información:</strong> Este sistema realiza copias de respaldo periódicas de la información almacenada; sin embargo, el consultorio es responsable de conservar copias adicionales de dichos respaldos.</p>
+      <p><strong>5. Sin garantía de disponibilidad continua:</strong> El sistema se ofrece "tal cual" (as-is); no se garantiza disponibilidad ininterrumpida ni se asumen responsabilidades por pérdida de datos derivada de fallas técnicas, cortes de energía, o causas de fuerza mayor.</p>
+      <p style="margin-top:14px;font-style:italic;color:#5E8073;">Al usar esta plataforma, usted acepta los términos y condiciones aquí mencionados.</p>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary" data-close>Entendido</button>
+    </div>
   </div>
 </div>
 
@@ -2057,6 +2081,10 @@
     e.preventDefault();
     $('#pw-form').reset();
     openOverlay('#modal-pw');
+  });
+  $('#btn-disclaimer').addEventListener('click', e=>{
+    e.preventDefault();
+    openOverlay('#modal-disclaimer');
   });
   $('#pw-form').addEventListener('submit', async e=>{
     e.preventDefault();
