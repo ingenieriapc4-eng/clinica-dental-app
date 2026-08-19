@@ -923,6 +923,11 @@
         <span><i style="background:var(--ok-light);"></i>Implante</span>
         <span><i style="background:#EEE;"></i>Ausente / Extraído</span>
       </div>
+      <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;">
+        <span style="font-size:13px;font-weight:600;color:var(--primary-dark);">Dentición:</span>
+        <button type="button" class="btn btn-sm" id="btn-dent-adulto" style="background:var(--primary);color:#fff;">Adulto (permanente)</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-dent-nino">Niño (primaria)</button>
+      </div>
       <p class="sub" style="margin-bottom:6px;">Arcada superior</p>
       <div class="tooth-arch" id="tooth-arch-top"></div>
       <p class="sub" style="margin-bottom:6px;">Arcada inferior</p>
@@ -1384,10 +1389,16 @@
         <span class="d">${fmtHuman(c.date)}</span>
         <span>${escapeHtml(c.treatment)} · ${money(c.cost)}</span>
         <span class="badge ${c.status}">${c.status}</span>
-        <button type="button" class="btn btn-ghost btn-sm" data-print-charge="${c.id}">Imprimir</button>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-charge="${c.id}">Editar</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-print-charge="${c.id}">Imprimir</button>
+        </div>
       </div>`).join('') : `<div class="hist-item"><span class="d" style="color:var(--muted)">Sin tratamientos registrados todavía</span></div>`;
     $$('[data-print-charge]', el).forEach(btn=>{
       btn.addEventListener('click', ()=> printCharge(state.charges.find(c=>c.id===btn.dataset.printCharge)));
+    });
+    $$('[data-edit-charge]', el).forEach(btn=>{
+      btn.addEventListener('click', ()=> openChargeModal(state.charges.find(c=>c.id===btn.dataset.editCharge)));
     });
   }
   function renderPatientDocs(docs){
@@ -2105,8 +2116,45 @@
     sano:'Sano', caries:'Caries', obturado:'Obturado', corona:'Corona',
     endodoncia:'Endodoncia', implante:'Implante', ausente:'Ausente', extraccion:'Extracción indicada'
   };
-  const TOP_TEETH = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
+  // Dentición permanente (adulto) — sistema FDI
+  const TOP_TEETH    = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
   const BOTTOM_TEETH = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+
+  // Dentición primaria (niño) — sistema FDI
+  const TOP_TEETH_PRIMARY    = [55,54,53,52,51,61,62,63,64,65];
+  const BOTTOM_TEETH_PRIMARY = [85,84,83,82,81,71,72,73,74,75];
+
+  let currentDenticion = 'adulto'; // 'adulto' | 'nino'
+
+  function getTopTeeth(){ return currentDenticion === 'nino' ? TOP_TEETH_PRIMARY : TOP_TEETH; }
+  function getBottomTeeth(){ return currentDenticion === 'nino' ? BOTTOM_TEETH_PRIMARY : BOTTOM_TEETH; }
+
+  if($('#btn-dent-adulto')){
+    $('#btn-dent-adulto').addEventListener('click', ()=>{
+      currentDenticion = 'adulto';
+      $('#btn-dent-adulto').style.background = 'var(--primary)';
+      $('#btn-dent-adulto').style.color = '#fff';
+      $('#btn-dent-adulto').className = 'btn btn-sm';
+      $('#btn-dent-nino').className = 'btn btn-ghost btn-sm';
+      $('#btn-dent-nino').style.background = '';
+      $('#btn-dent-nino').style.color = '';
+      drawToothArch('#tooth-arch-top', getTopTeeth());
+      drawToothArch('#tooth-arch-bottom', getBottomTeeth());
+    });
+  }
+  if($('#btn-dent-nino')){
+    $('#btn-dent-nino').addEventListener('click', ()=>{
+      currentDenticion = 'nino';
+      $('#btn-dent-nino').style.background = 'var(--primary)';
+      $('#btn-dent-nino').style.color = '#fff';
+      $('#btn-dent-nino').className = 'btn btn-sm';
+      $('#btn-dent-adulto').className = 'btn btn-ghost btn-sm';
+      $('#btn-dent-adulto').style.background = '';
+      $('#btn-dent-adulto').style.color = '';
+      drawToothArch('#tooth-arch-top', getTopTeeth());
+      drawToothArch('#tooth-arch-bottom', getBottomTeeth());
+    });
+  }
 
   async function loadOdontogram(pid){
     odontoPatientId = pid;
@@ -2119,8 +2167,8 @@
     }catch(err){ currentPrescription = {medications:'', instructions:'', updated_at:''}; }
     $('#rx-medications').value = currentPrescription.medications || '';
     $('#rx-instructions').value = currentPrescription.instructions || '';
-    drawToothArch('#tooth-arch-top', TOP_TEETH);
-    drawToothArch('#tooth-arch-bottom', BOTTOM_TEETH);
+    drawToothArch('#tooth-arch-top', getTopTeeth());
+    drawToothArch('#tooth-arch-bottom', getBottomTeeth());
   }
 
   const TOOTH_SVG_PATH = "M12 2C8.5 2 6 4 4.5 4C3.3 4 2.5 5 2.5 6.5C2.5 9 3.5 10 3.8 12.5C4.1 15 4.5 22 6.5 22C8 22 8 17 9 15C9.5 14 10.2 13.5 12 13.5C13.8 13.5 14.5 14 15 15C16 17 16 22 17.5 22C19.5 22 19.9 15 20.2 12.5C20.5 10 21.5 9 21.5 6.5C21.5 5 20.7 4 19.5 4C18 4 15.5 2 12 2Z";
@@ -2156,8 +2204,8 @@
       odontoTeeth = await api(`/api/patients/${odontoPatientId}/odontogram`, {method:'POST', body: JSON.stringify({
         tooth: currentToothNum, status: $('#tooth-status').value, notes: $('#tooth-notes').value,
       })});
-      drawToothArch('#tooth-arch-top', TOP_TEETH);
-      drawToothArch('#tooth-arch-bottom', BOTTOM_TEETH);
+      drawToothArch('#tooth-arch-top', getTopTeeth());
+      drawToothArch('#tooth-arch-bottom', getBottomTeeth());
       $('#modal-tooth').classList.remove('open');
       toast('Diente actualizado');
     }catch(err){ toast(err.message); }
